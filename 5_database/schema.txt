@@ -1,0 +1,186 @@
+=== TABLE: categories ===
+Columns: 4, Rows: 8
+  - category_id: smallint (NOT NULL)
+  - category_name: character varying (NOT NULL)
+  - description: text (NULL)
+  - picture: bytea (NULL)
+Sample data:
+  Row 1: (1, 'Beverages', 'Soft drinks, coffees, teas, beers, and ales', <memory at 0x000002974E926740>)
+  Row 2: (2, 'Condiments', 'Sweet and savory sauces, relishes, spreads, and seasonings', <memory at 0x000002974E926A40>)
+  Row 3: (3, 'Confections', 'Desserts, candies, and sweet breads', <memory at 0x000002974E926B00>)
+
+=== TABLE: customer_customer_demo ===
+Columns: 2, Rows: 0
+  - customer_id: character varying (NOT NULL)
+  - customer_type_id: character varying (NOT NULL)
+Sample data:
+
+=== TABLE: customer_demographics ===
+Columns: 2, Rows: 0
+  - customer_type_id: character varying (NOT NULL)
+  - customer_desc: text (NULL)
+Sample data:
+
+=== TABLE: customers ===
+Columns: 11, Rows: 91
+  - customer_id: character varying (NOT NULL)
+  - company_name: character varying (NOT NULL)
+  - contact_name: character varying (NULL)
+  - contact_title: character varying (NULL)
+  - address: character varying (NULL)
+  - city: character varying (NULL)
+  - region: character varying (NULL)
+  - postal_code: character varying (NULL)
+  - country: character varying (NULL)
+  - phone: character varying (NULL)
+  - fax: character varying (NULL)
+Sample data:
+  Row 1: ('ALFKI', 'Alfreds Futterkiste', 'Maria Anders', 'Sales Representative', 'Obere Str. 57', 'Berlin', None, '12209', 'Germany', '030-0074321', '030-0076545')
+  Row 2: ('ANATR', 'Ana Trujillo Emparedados y helados', 'Ana Trujillo', 'Owner', 'Avda. de la 
+Constitución 2222', 'México D.F.', None, '05021', 'Mexico', '(5) 555-4729', '(5) 555-3745')    
+  Row 3: ('ANTON', 'Antonio Moreno Taquería', 'Antonio Moreno', 'Owner', 'Mataderos  2312', 'México D.F.', None, '05023', 'Mexico', '(5) 555-3932', None)
+
+=== TABLE: employee_territories ===
+Columns: 2, Rows: 49
+  - employee_id: smallint (NOT NULL)
+  - territory_id: character varying (NOT NULL)
+Sample data:
+  Row 1: (1, '06897')
+  Row 2: (1, '19713')
+  Row 3: (2, '01581')
+
+=== TABLE: employees ===
+Columns: 18, Rows: 9
+  - employee_id: smallint (NOT NULL)
+  - last_name: character varying (NOT NULL)
+  - first_name: character varying (NOT NULL)
+  - title: character varying (NULL)
+  - title_of_courtesy: character varying (NULL)
+  - birth_date: date (NULL)
+  - hire_date: date (NULL)
+  - address: character varying (NULL)
+  - city: character varying (NULL)
+  - region: character varying (NULL)
+  - postal_code: character varying (NULL)
+  - country: character varying (NULL)
+  - home_phone: character varying (NULL)
+  - extension: character varying (NULL)
+  - photo: bytea (NULL)
+  - notes: text (NULL)
+  - reports_to: smallint (NULL)
+  - photo_path: character varying (NULL)
+Sample data:
+  Row 1: (1, 'Davolio', 'Nancy', 'Sales Representative', 'Ms.', datetime.date(1948, 12, 8), datetime.date(1992, 5, 1), '507 - 20th Ave. E.\\nApt. 2A', 'Seattle', 'WA', '98122', 'USA', '(206) 555-9857', '5467', <memory at 0x000002974E926EC0>, 'Education includes a BA in psychology from Colorado State University in 1970.  She also completed The Art of the Cold Call.  Nancy is a member of Toastmasters International.', 2, 'http://accweb/emmployees/davolio.bmp')
+  Row 2: (2, 'Fuller', 'Andrew', 'Vice President, Sales', 'Dr.', datetime.date(1952, 2, 19), datetime.date(1992, 8, 14), '908 W. Capital Way', 'Tacoma', 'WA', '98401', 'USA', '(206) 555-9482', '3457', <memory at 0x000002974E927040>, 'Andrew received his BTS commercial in 1974 and a Ph.D. in international marketing from the University of Dallas in 1981.  He is fluent in French and Italian and reads German.  He joined the company as a sales representative, was promoted to 
+sales manager in January 1992 and to vice president of sales in March 1993.  Andrew is a member of the Sales Management Roundtable, the Seattle Chamber of Commerce, and the Pacific Rim Importers Association.', None, 'http://accweb/emmployees/fuller.bmp')
+  Row 3: (3, 'Leverling', 'Janet', 'Sales Representative', 'Ms.', datetime.date(1963, 8, 30), datetime.date(1992, 4, 1), '722 Moss Bay Blvd.', 'Kirkland', 'WA', '98033', 'USA', '(206) 555-3412', '3355', <memory at 0x000002974E9271C0>, 'Janet has a BS degree in chemistry from Boston College (1984).  She has also completed a certificate program in food retailing management.  Janet was hired as a sales associate in 1991 and promoted to sales representative in February 1992.', 2, 'http://accweb/emmployees/leverling.bmp')
+
+=== TABLE: order_details ===
+Columns: 5, Rows: 2155
+  - order_id: smallint (NOT NULL)
+  - product_id: smallint (NOT NULL)
+  - unit_price: real (NOT NULL)
+  - quantity: smallint (NOT NULL)
+  - discount: real (NOT NULL)
+Sample data:
+  Row 1: (10248, 11, 14.0, 12, 0.0)
+  Row 2: (10248, 42, 9.8, 10, 0.0)
+  Row 3: (10248, 72, 34.8, 5, 0.0)
+
+=== TABLE: orders ===
+Columns: 14, Rows: 830
+  - order_id: smallint (NOT NULL)
+  - customer_id: character varying (NULL)
+  - employee_id: smallint (NULL)
+  - order_date: date (NULL)
+  - required_date: date (NULL)
+  - shipped_date: date (NULL)
+  - ship_via: smallint (NULL)
+  - freight: real (NULL)
+  - ship_name: character varying (NULL)
+  - ship_address: character varying (NULL)
+  - ship_city: character varying (NULL)
+  - ship_region: character varying (NULL)
+  - ship_postal_code: character varying (NULL)
+  - ship_country: character varying (NULL)
+Sample data:
+  Row 1: (10248, 'VINET', 5, datetime.date(1996, 7, 4), datetime.date(1996, 8, 1), datetime.date(1996, 7, 16), 3, 32.38, 'Vins et alcools Chevalier', "59 rue de l'Abbaye", 'Reims', None, '51100', 'France')
+  Row 2: (10249, 'TOMSP', 6, datetime.date(1996, 7, 5), datetime.date(1996, 8, 16), datetime.date(1996, 7, 10), 1, 11.61, 'Toms Spezialitäten', 'Luisenstr. 48', 'Münster', None, '44087', 'Germany')
+  Row 3: (10250, 'HANAR', 4, datetime.date(1996, 7, 8), datetime.date(1996, 8, 5), datetime.date(1996, 7, 12), 2, 65.83, 'Hanari Carnes', 'Rua do Paço, 67', 'Rio de Janeiro', 'RJ', '05454-876', 'Brazil')
+
+=== TABLE: products ===
+Columns: 10, Rows: 77
+  - product_id: smallint (NOT NULL)
+  - product_name: character varying (NOT NULL)
+  - supplier_id: smallint (NULL)
+  - category_id: smallint (NULL)
+  - quantity_per_unit: character varying (NULL)
+  - unit_price: real (NULL)
+  - units_in_stock: smallint (NULL)
+  - units_on_order: smallint (NULL)
+  - reorder_level: smallint (NULL)
+  - discontinued: integer (NOT NULL)
+Sample data:
+  Row 1: (1, 'Chai', 8, 1, '10 boxes x 30 bags', 18.0, 39, 0, 10, 1)
+  Row 2: (2, 'Chang', 1, 1, '24 - 12 oz bottles', 19.0, 17, 40, 25, 1)
+  Row 3: (3, 'Aniseed Syrup', 1, 2, '12 - 550 ml bottles', 10.0, 13, 70, 25, 0)
+
+=== TABLE: region ===
+Columns: 2, Rows: 4
+  - region_id: smallint (NOT NULL)
+  - region_description: character varying (NOT NULL)
+Sample data:
+  Row 1: (1, 'Eastern')
+  Row 2: (2, 'Western')
+  Row 3: (3, 'Northern')
+
+=== TABLE: shippers ===
+Columns: 3, Rows: 6
+  - shipper_id: smallint (NOT NULL)
+  - company_name: character varying (NOT NULL)
+  - phone: character varying (NULL)
+Sample data:
+  Row 1: (1, 'Speedy Express', '(503) 555-9831')
+  Row 2: (2, 'United Package', '(503) 555-3199')
+  Row 3: (3, 'Federal Shipping', '(503) 555-9931')
+
+=== TABLE: suppliers ===
+Columns: 12, Rows: 29
+  - supplier_id: smallint (NOT NULL)
+  - company_name: character varying (NOT NULL)
+  - contact_name: character varying (NULL)
+  - contact_title: character varying (NULL)
+  - address: character varying (NULL)
+  - city: character varying (NULL)
+  - region: character varying (NULL)
+  - postal_code: character varying (NULL)
+  - country: character varying (NULL)
+  - phone: character varying (NULL)
+  - fax: character varying (NULL)
+  - homepage: text (NULL)
+Sample data:
+  Row 1: (1, 'Exotic Liquids', 'Charlotte Cooper', 'Purchasing Manager', '49 Gilbert St.', 'London', None, 'EC1 4SD', 'UK', '(171) 555-2222', None, None)
+  Row 2: (2, 'New Orleans Cajun Delights', 'Shelley Burke', 'Order Administrator', 'P.O. Box 78934', 'New Orleans', 'LA', '70117', 'USA', '(100) 555-4822', None, '#CAJUN.HTM#')
+  Row 3: (3, "Grandma Kelly's Homestead", 'Regina Murphy', 'Sales Representative', '707 Oxford 
+Rd.', 'Ann Arbor', 'MI', '48104', 'USA', '(313) 555-5735', '(313) 555-3349', None)
+
+=== TABLE: territories ===
+Columns: 3, Rows: 53
+  - territory_id: character varying (NOT NULL)
+  - territory_description: character varying (NOT NULL)
+  - region_id: smallint (NOT NULL)
+Sample data:
+  Row 1: ('01581', 'Westboro', 1)
+  Row 2: ('01730', 'Bedford', 1)
+  Row 3: ('01833', 'Georgetow', 1)
+
+=== TABLE: us_states ===
+Columns: 4, Rows: 51
+  - state_id: smallint (NOT NULL)
+  - state_name: character varying (NULL)
+  - state_abbr: character varying (NULL)
+  - state_region: character varying (NULL)
+Sample data:
+  Row 1: (1, 'Alabama', 'AL', 'south')
+  Row 2: (2, 'Alaska', 'AK', 'north')
+  Row 3: (3, 'Arizona', 'AZ', 'west')
