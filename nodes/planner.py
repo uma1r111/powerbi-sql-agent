@@ -10,6 +10,8 @@ from langchain_chroma import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import FastEmbedEmbeddings
 
 # Import our state management
 from state.agent_state import AgentState
@@ -61,7 +63,7 @@ class PlannerNode:
                         "input": query_info["natural_language"],
                         "query": query_info["sql"],
                         "complexity": query_info["complexity"],
-                        "tables": query_info["tables_involved"]
+                        "tables": ", ".join(query_info["tables_involved"])
                     })
             
             # Create vector store for semantic similarity
@@ -74,7 +76,7 @@ class PlannerNode:
             # Create example selector
             self.example_selector = SemanticSimilarityExampleSelector.from_examples(
                 examples,
-                GoogleGenerativeAIEmbeddings(model="models/embedding-001"),
+                FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2"),
                 vectorstore,
                 k=3,  # Select top 3 most similar examples
                 input_keys=["input"],
