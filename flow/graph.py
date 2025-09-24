@@ -1,13 +1,13 @@
 # flow/graph.py
 
 import logging
-from typing import Dict, Any, Literal
+from typing import Dict, Any, Literal, TypedDict, List, Optional
 from datetime import datetime
 
 # LangGraph imports
-from langgraph.graph import Graph, StateGraph, START, END
+from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.prebuilt import ToolNode
+from langchain_core.messages import BaseMessage
 
 # Import our state management
 from state.agent_state import AgentState, StateManager
@@ -25,59 +25,141 @@ from tools.validation_tools import query_validator, validate_complete_query
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Define TypedDict for LangGraph compatibility
+class GraphState(TypedDict):
+    user_query: str
+    original_query: str
+    selected_tables: List[str]
+    schema_context: Dict[str, Any]
+    business_intent: str
+    generated_sql: str
+    cleaned_sql: str
+    validation_passed: bool
+    execution_successful: bool
+    result_count: int
+    processing_complete: bool
+    messages: List[BaseMessage]
+    errors: List[str]
+    warnings: List[str]
+    validation_results: Dict[str, Any]
+    execution_results: Dict[str, Any]
+    needs_correction: bool
+    correction_attempts: int
+    max_correction_attempts: int
+    execution_time: Optional[float]
+    few_shot_examples: List[Dict[str, Any]]
+    query_complexity: str
+    table_relationships: Dict[str, Any]
+    is_follow_up_query: bool
+    session_id: str
+    timestamp: str 
+    requires_user_input: bool
+
+def agent_state_to_graph_state(agent_state: AgentState) -> GraphState:
+    """Convert AgentState to GraphState"""
+    return GraphState(
+        user_query=agent_state.user_query,
+        original_query=agent_state.original_query,
+        selected_tables=agent_state.selected_tables,
+        schema_context=agent_state.schema_context,
+        business_intent=agent_state.business_intent,
+        generated_sql=agent_state.generated_sql,
+        cleaned_sql=agent_state.cleaned_sql,
+        validation_passed=agent_state.validation_passed,
+        execution_successful=agent_state.execution_successful,
+        result_count=agent_state.result_count,
+        processing_complete=agent_state.processing_complete,
+        messages=agent_state.messages,
+        errors=agent_state.errors,
+        warnings=agent_state.warnings,
+        validation_results=agent_state.validation_results,
+        execution_results=agent_state.execution_results,
+        needs_correction=agent_state.needs_correction,
+        correction_attempts=agent_state.correction_attempts,
+        max_correction_attempts=agent_state.max_correction_attempts,
+        execution_time=agent_state.execution_time or None,
+        few_shot_examples=agent_state.few_shot_examples,
+        query_complexity=agent_state.query_complexity,
+        table_relationships=agent_state.table_relationships,
+        is_follow_up_query=agent_state.is_follow_up_query,
+        session_id=str(agent_state.session_id),
+        timestamp=str(agent_state.timestamp),
+        requires_user_input=agent_state.requires_user_input
+    )
+
+def graph_state_to_agent_state(graph_state: GraphState) -> AgentState:
+    """Convert GraphState to AgentState"""
+    agent_state = AgentState(
+        user_query=graph_state["user_query"],
+        original_query=graph_state["original_query"],
+        selected_tables=graph_state["selected_tables"],
+        schema_context=graph_state["schema_context"],
+        business_intent=graph_state["business_intent"],
+        generated_sql=graph_state["generated_sql"],
+        cleaned_sql=graph_state["cleaned_sql"],
+        validation_passed=graph_state["validation_passed"],
+        execution_successful=graph_state["execution_successful"],
+        result_count=graph_state["result_count"],
+        processing_complete=graph_state["processing_complete"],
+        messages=graph_state["messages"],
+        errors=graph_state["errors"],
+        warnings=graph_state["warnings"],
+        validation_results=graph_state["validation_results"],
+        execution_results=graph_state["execution_results"],
+        needs_correction=graph_state["needs_correction"],
+        correction_attempts=graph_state["correction_attempts"],
+        max_correction_attempts=graph_state["max_correction_attempts"],
+        execution_time=graph_state.get("execution_time", None),
+        few_shot_examples=graph_state["few_shot_examples"],
+        query_complexity=graph_state["query_complexity"],
+        table_relationships=graph_state["table_relationships"],
+        is_follow_up_query=graph_state["is_follow_up_query"],
+        session_id=graph_state["session_id"],
+        #timestamp=datetime.fromisoformat(graph_state["timestamp"]) if graph_state["timestamp"] else datetime.now(),
+        requires_user_input=graph_state["requires_user_input"]
+    )
+    return agent_state
+
 class QueryValidatorNode:
     """Node for validating SQL queries before execution"""
     
     def __init__(self):
         self.node_name = "query_validator"
     
-    def __call__(self, state: AgentState) -> AgentState:
+    def __call__(self, state: GraphState) -> GraphState:
         logger.info("Validating SQL query")
         
         try:
-            # Get current plan step
-            current_plan = getattr(state, '_current_plan', None)
-            if current_plan:
-                current_step = current_plan.get_current_step()
-                if current_step:
-                    current_step.start_execution()
+            # Convert to AgentState
+            agent_state = graph_state_to_agent_state(state)
             
             # Validate the query
             validation_result = validate_complete_query(
-                state.cleaned_sql,
-                schema_context=state.schema_context,
-                intent=state.business_intent,
+                agent_state.cleaned_sql,
+                schema_context=agent_state.schema_context,
+                intent=agent_state.business_intent,
                 database_check=True
             )
             
             # Update state with validation results
-            state.validation_results = validation_result
-            state.validation_passed = validation_result["success"]
+            agent_state.validation_results = validation_result
+            agent_state.validation_passed = validation_result["success"]
             
             # Add any warnings or errors
             if not validation_result["success"]:
-                state.add_error("Query validation failed")
-                state.needs_correction = True
-                state.correction_attempts += 1
+                agent_state.add_error("Query validation failed")
+                agent_state.needs_correction = True
+                agent_state.correction_attempts += 1
             
-            # Complete current step
-            if current_plan and current_step:
-                current_step.complete_execution({
-                    "validation_passed": state.validation_passed,
-                    "validation_score": validation_result.get("overall_score", 0)
-                })
-            
-            return state
+            # Convert back to GraphState
+            return agent_state_to_graph_state(agent_state)
             
         except Exception as e:
             error_msg = f"Query validation error: {str(e)}"
             logger.error(error_msg)
-            state.add_error(error_msg)
-            
-            if current_plan and current_step:
-                current_step.fail_execution(error_msg)
-            
-            return state
+            agent_state = graph_state_to_agent_state(state)
+            agent_state.add_error(error_msg)
+            return agent_state_to_graph_state(agent_state)
 
 class SQLExecutorNode:
     """Node for executing validated SQL queries"""
@@ -85,56 +167,42 @@ class SQLExecutorNode:
     def __init__(self):
         self.node_name = "sql_executor"
     
-    def __call__(self, state: AgentState) -> AgentState:
+    def __call__(self, state: GraphState) -> GraphState:
         logger.info("Executing SQL query")
         
         try:
-            # Get current plan step
-            current_plan = getattr(state, '_current_plan', None)
-            if current_plan:
-                current_step = current_plan.get_current_step()
-                if current_step:
-                    current_step.start_execution()
+            # Convert to AgentState
+            agent_state = graph_state_to_agent_state(state)
             
             # Execute the query
             start_time = datetime.now()
-            execution_result = sql_executor.execute_query(state.cleaned_sql)
+            execution_result = sql_executor.execute_query(agent_state.cleaned_sql)
             end_time = datetime.now()
             
             # Calculate execution time
-            state.execution_time = (end_time - start_time).total_seconds()
+            agent_state.execution_time = (end_time - start_time).total_seconds()
             
             # Update state with execution results
-            state.execution_results = execution_result
-            state.execution_successful = execution_result["success"]
+            agent_state.execution_results = execution_result
+            agent_state.execution_successful = execution_result["success"]
             
             if execution_result["success"]:
-                state.result_count = execution_result.get("row_count", 0)
-                logger.info(f"Query executed successfully. Returned {state.result_count} rows")
+                agent_state.result_count = execution_result.get("row_count", 0)
+                logger.info(f"Query executed successfully. Returned {agent_state.result_count} rows")
             else:
-                state.add_error(f"Query execution failed: {execution_result.get('error', 'Unknown error')}")
-                state.needs_correction = True
-                state.correction_attempts += 1
+                agent_state.add_error(f"Query execution failed: {execution_result.get('error', 'Unknown error')}")
+                agent_state.needs_correction = True
+                agent_state.correction_attempts += 1
             
-            # Complete current step
-            if current_plan and current_step:
-                current_step.complete_execution({
-                    "execution_successful": state.execution_successful,
-                    "result_count": state.result_count,
-                    "execution_time": state.execution_time
-                })
-            
-            return state
+            # Convert back to GraphState
+            return agent_state_to_graph_state(agent_state)
             
         except Exception as e:
             error_msg = f"Query execution error: {str(e)}"
             logger.error(error_msg)
-            state.add_error(error_msg)
-            
-            if current_plan and current_step:
-                current_step.fail_execution(error_msg)
-            
-            return state
+            agent_state = graph_state_to_agent_state(state)
+            agent_state.add_error(error_msg)
+            return agent_state_to_graph_state(agent_state)
 
 class OutputFormatterNode:
     """Node for formatting and presenting results"""
@@ -142,50 +210,39 @@ class OutputFormatterNode:
     def __init__(self):
         self.node_name = "output_formatter"
     
-    def __call__(self, state: AgentState) -> AgentState:
+    def __call__(self, state: GraphState) -> GraphState:
         logger.info("Formatting output")
         
         try:
-            # Get current plan step
-            current_plan = getattr(state, '_current_plan', None)
-            if current_plan:
-                current_step = current_plan.get_current_step()
-                if current_step:
-                    current_step.start_execution()
+            # Convert to AgentState
+            agent_state = graph_state_to_agent_state(state)
             
             # Format the response based on execution results
-            if state.execution_successful:
+            if agent_state.execution_successful:
                 # Format successful results
-                formatted_output = self._format_successful_results(state)
+                formatted_output = self._format_successful_results(agent_state)
                 response_message = f"Query executed successfully!\n\n{formatted_output}"
             else:
                 # Format error response
-                response_message = self._format_error_response(state)
+                response_message = self._format_error_response(agent_state)
             
             # Add AI response to conversation history
-            state.add_ai_message(response_message)
+            agent_state.add_ai_message(response_message)
             
             # Mark processing as complete
-            state.processing_complete = True
-            
-            # Complete execution plan
-            if current_plan:
-                current_plan.complete_execution()
-                if current_step:
-                    current_step.complete_execution({"formatted_output": True})
+            agent_state.processing_complete = True
             
             logger.info("Output formatting completed")
-            return state
+            
+            # Convert back to GraphState
+            return agent_state_to_graph_state(agent_state)
             
         except Exception as e:
             error_msg = f"Output formatting error: {str(e)}"
             logger.error(error_msg)
-            state.add_error(error_msg)
-            
-            if current_plan and current_step:
-                current_step.fail_execution(error_msg)
-            
-            return state
+            agent_state = graph_state_to_agent_state(state)
+            agent_state.add_error(error_msg)
+            return agent_state_to_graph_state(agent_state)
     
     def _format_successful_results(self, state: AgentState) -> str:
         """Format successful query results for display"""
@@ -347,7 +404,7 @@ class PowerBISQLAgent:
         try:
             # Execute the workflow
             final_state = await self.graph.ainvoke(initial_state, config)
-            
+            final_state = graph_state_to_agent_state(final_state)
             logger.info(f"Query processing completed. Success: {final_state.processing_complete}")
             return final_state
             
@@ -380,7 +437,7 @@ class PowerBISQLAgent:
         try:
             # Execute the workflow synchronously
             final_state = self.graph.invoke(initial_state, config)
-            
+            final_state = graph_state_to_agent_state(final_state)
             logger.info(f"Query processing completed. Success: {final_state.processing_complete}")
             return final_state
             

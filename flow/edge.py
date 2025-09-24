@@ -3,73 +3,75 @@ from typing import Literal, Dict, Any
 
 # Import our state management  
 from state.agent_state import AgentState
-from state.plan_state import StepStatus
+from flow.graph import GraphState, graph_state_to_agent_state
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def should_continue_to_planner(state: AgentState) -> Literal["continue", "error"]:
+def should_continue_to_planner(state: GraphState) -> Literal["continue", "error"]:
     """
     Determine if processing should continue to the next node or stop due to errors
     
     Used after schema_inspector and planner nodes
     
     Args:
-        state: Current agent state
+        state: Current GraphState
         
     Returns:
         "continue" if processing should continue, "error" if it should stop
     """
+    agent_state = graph_state_to_agent_state(state)
     logger.info("Evaluating continuation condition")
     
     # Check for critical errors that should stop processing
-    if len(state.errors) > 0:
-        logger.warning(f"Found {len(state.errors)} errors, stopping processing")
+    if len(agent_state.errors) > 0:
+        logger.warning(f"Found {len(agent_state.errors)} errors, stopping processing")
         return "error"
     
     # Check if we have required information
-    if not state.selected_tables:
+    if not agent_state.selected_tables:
         logger.warning("No tables selected, cannot continue")
-        state.add_error("No relevant tables identified for the query")
+        agent_state.add_error("No relevant tables identified for the query")
         return "error"
     
     # Check if we're in a retry loop
-    if state.correction_attempts >= state.max_correction_attempts:
-        logger.warning(f"Max correction attempts ({state.max_correction_attempts}) reached")
-        state.add_error("Maximum correction attempts exceeded")
+    if agent_state.correction_attempts >= agent_state.max_correction_attempts:
+        logger.warning(f"Max correction attempts ({agent_state.max_correction_attempts}) reached")
+        agent_state.add_error("Maximum correction attempts exceeded")
         return "error"
     
     logger.info("Conditions met, continuing processing")
     return "continue"
 
-def should_execute_query(state: AgentState) -> Literal["execute", "retry", "error"]:
+def should_execute_query(state: GraphState) -> Literal["execute", "retry", "error"]:
     """
     Determine if the validated query should be executed, retried, or stopped
     
     Used after query_validator node
     
     Args:
-        state: Current agent state
+        state: Current GraphState
         
     Returns:
         "execute" if query should be executed
         "retry" if query needs regeneration  
         "error" if processing should stop
     """
+    agent_state = graph_state_to_agent_state(state)
     logger.info("Evaluating query execution condition")
     
     # Check if validation passed
-    if state.validation_passed:
+    if agent_state.validation_passed:
         logger.info("Validation passed, proceeding to execution")
         return "execute"
     
     # Check if we can retry
-    if state.correction_attempts < state.max_correction_attempts:
-        logger.info(f"Validation failed, retrying (attempt {state.correction_attempts + 1}/{state.max_correction_attempts})")
+    if agent_state.correction_attempts < agent_state.max_correction_attempts:
+        logger.info(f"Validation failed, retrying (attempt {agent_state.correction_attempts + 1}/{agent_state.max_correction_attempts})")
         
         # Determine if the error is retryable
-        validation_results = state.validation_results
+        validation_results = agent_state.validation_results
         
         if validation_results and "syntax_validation" in validation_results:
             syntax_errors = validation_results["syntax_validation"].get("errors", [])
@@ -85,43 +87,44 @@ def should_execute_query(state: AgentState) -> Literal["execute", "retry", "erro
             for error in syntax_errors:
                 if any(pattern in error.lower() for pattern in non_retryable_patterns):
                     logger.error(f"Non-retryable error detected: {error}")
-                    state.add_error(f"Security violation: {error}")
+                    agent_state.add_error(f"Security violation: {error}")
                     return "error"
         
         # Mark that we need correction and retry
-        state.needs_correction = True
+        agent_state.needs_correction = True
         return "retry"
     
     # Max attempts reached
     logger.error("Max correction attempts reached, stopping")
-    state.add_error("Query validation failed after maximum retry attempts")
+    agent_state.add_error("Query validation failed after maximum retry attempts")
     return "error"
 
-def should_retry_query(state: AgentState) -> Literal["success", "retry", "error"]:
+def should_retry_query(state: GraphState) -> Literal["success", "retry", "error"]:
     """
     Determine the next step after query execution
     
     Used after sql_executor node
     
     Args:
-        state: Current agent state
+        state: Current GraphState
         
     Returns:
         "success" if execution succeeded and should proceed to output
         "retry" if execution failed but should retry
         "error" if execution failed and should stop
     """
+    agent_state = graph_state_to_agent_state(state)
     logger.info("Evaluating post-execution condition")
     
     # Check if execution was successful
-    if state.execution_successful:
+    if agent_state.execution_successful:
         logger.info("Query execution successful, proceeding to output formatting")
         return "success"
     
     # Execution failed - check if we can retry
-    if state.correction_attempts < state.max_correction_attempts:
+    if agent_state.correction_attempts < agent_state.max_correction_attempts:
         # Analyze the type of error to determine if retry is worthwhile
-        execution_results = state.execution_results
+        execution_results = agent_state.execution_results
         
         if execution_results and "error" in execution_results:
             error_message = execution_results["error"].lower()
@@ -143,23 +146,23 @@ def should_retry_query(state: AgentState) -> Literal["success", "retry", "error"
             # Check error category
             if any(pattern in error_message for pattern in permission_errors):
                 logger.error(f"Permission error, not retrying: {error_message}")
-                state.add_error("Database access permission error")
+                agent_state.add_error("Database access permission error")
                 return "error"
             
             elif any(pattern in error_message for pattern in connection_errors):
                 logger.error(f"Connection error, not retrying: {error_message}")
-                state.add_error("Database connection error")
+                agent_state.add_error("Database connection error")
                 return "error"
             
             elif any(pattern in error_message for pattern in syntax_errors):
                 logger.info(f"Syntax error detected, will retry: {error_message}")
-                state.needs_correction = True
+                agent_state.needs_correction = True
                 return "retry"
             
             else:
                 # Unknown error type - try once more
                 logger.warning(f"Unknown error type, will retry once: {error_message}")
-                state.needs_correction = True
+                agent_state.needs_correction = True
                 return "retry"
     
     # Max attempts reached or non-retryable error
