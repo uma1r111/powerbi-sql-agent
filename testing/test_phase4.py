@@ -2,9 +2,9 @@ import asyncio
 import sys
 import os
 import pandas as pd
-from tabulate import tabulate  # ✅ Pretty table output
+from tabulate import tabulate
 
-# Add the project root to Python path
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flow.graph import agent
@@ -16,9 +16,9 @@ async def test_agent():
     pd.set_option("display.max_columns", None)
     pd.set_option("display.width", None)
     pd.set_option("display.max_colwidth", None)
-
+    
     # Run query
-    result = await agent.process_query("Show me customers from Germany")
+    result = await agent.process_query("Show me orders with customer names")
 
     print("\n=== FINAL RESULT ===")
     print(f"✅ Success: {result.processing_complete}")

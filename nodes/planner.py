@@ -196,7 +196,7 @@ Generate ONLY the SQL query, no explanations."""
     
     def _select_few_shot_examples(self, state: AgentState) -> List[Dict[str, Any]]:
         """
-        Select relevant few-shot examples using semantic similarity (YouTube approach)
+        Select relevant few-shot examples using semantic similarity
         """
         logger.info("🎲 Selecting few-shot examples")
         
