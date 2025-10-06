@@ -1,0 +1,281 @@
+{
+  "project_overview": {
+    "title": "AI Chatbot for PowerBI - FYP Project",
+    "problems_solving": [
+      "Context issue - copilot treats each query independently",
+      "Memory issue - long term chats don't maintain earlier memory",
+      "Visualization - SQL output generates connected visualizations with Plotly/Gradio"
+    ],
+    "approach": "Agentic AI using LangGraph/LangChain",
+    "current_focus": "NLP to SQL Agent (Stage 1)",
+    "future_migration": "AWS (RDS, Lambda, Bedrock, Kendra, API Gateway) or Azure (Lake, Fabric, Semantic Modelling)"
+  },
+  
+  "architecture_design": {
+    "version": "2.0",
+    "stage_1_current": {
+      "name": "Basic Agent with Schema Awareness", 
+      "flow": "User → Schema Inspection → Plan → SQL Executor → Output",
+      "nodes": [
+        "user_input",
+        "schema_inspector", 
+        "planner",
+        "query_validator",
+        "sql_executor",
+        "output_formatter"
+      ]
+    },
+    "planned_stages": [
+      "Stage 2: Enhanced Self-Correction with Error Classification",
+      "Stage 3: Advanced Hierarchical Memory with Conflict Resolution", 
+      "Stage 4: Multi-Tool Ecosystem with Dependency Management",
+      "Stage 5: Performance Optimization and Context Management",
+      "Stage 6: PowerBI Integration and Connected Visualizations",
+      "Stage 7: Final LangGraph Orchestration"
+    ]
+  },
+
+  "database_setup": {
+    "platform": "AWS RDS PostgreSQL",
+    "database_name": "powerbi_data",
+    "dataset": "Northwind",
+    "connection_details": {
+      "host": "powerbi-agent-db.cktek8y8yn85.us-east-1.rds.amazonaws.com",
+      "port": 5432,
+      "user": "umair"
+    },
+    "table_count": 13,
+    "key_tables": [
+      "customers (91 rows)",
+      "orders (830 rows)", 
+      "order_details (2155 rows)",
+      "products (77 rows)",
+      "categories (8 rows)",
+      "suppliers (29 rows)",
+      "employees (9 rows)"
+    ]
+  },
+
+  "folder_structure": {
+    "root": "powerbi-sql-agent/",
+    "folders": {
+      "flow/": {
+        "description": "LangGraph workflow definition",
+        "files": ["__init__.py", "graph.py", "edges.py"]
+      },
+      "nodes/": {
+        "description": "Individual agent nodes",
+        "files": [
+          "user_input.py",
+          "schema_inspector.py", 
+          "planner.py",
+          "query_validator.py",
+          "sql_executor.py",
+          "output_formatter.py"
+        ]
+      },
+      "state/": {
+        "description": "Agent state management",
+        "files": ["agent_state.py", "plan_state.py"]
+      },
+      "tools/": {
+        "description": "Agent tools and utilities",
+        "files": ["sql_tools.py", "schema_tools.py", "validation_tools.py"],
+        "status": "COMPLETED"
+      },
+      "database/": {
+        "description": "Database connection and documentation",
+        "files": [
+          "connection.py",
+          "explore_schema.py",
+          "northwind_context.py", 
+          "relationships.py",
+          "sample_queries.py"
+        ],
+        "status": "COMPLETED"
+      },
+      "config/": {
+        "description": "Configuration files",
+        "files": ["aws_config.py", "agent_config.py"]
+      },
+      "run/": {
+        "description": "Entry points and testing",
+        "files": ["main.py", "test_agent.py"]
+      }
+    }
+  },
+
+  "completed_components": {
+    "database_documentation": {
+      "northwind_context.py": {
+        "purpose": "Business context for all tables",
+        "contains": [
+          "BUSINESS_CONTEXT dict with table descriptions",
+          "Business questions each table answers",
+          "Key fields and business importance",
+          "BUSINESS_SCENARIO with company context"
+        ]
+      },
+      "relationships.py": {
+        "purpose": "Table relationships and JOIN patterns",
+        "contains": [
+          "FOREIGN_KEY_RELATIONSHIPS mapping",
+          "TABLE_CONNECTIONS for direct/indirect relationships",
+          "COMMON_JOIN_PATTERNS for SQL generation",
+          "Utility functions: get_related_tables(), get_join_path()"
+        ]
+      },
+      "sample_queries.py": {
+        "purpose": "Query examples and patterns",
+        "contains": [
+          "SAMPLE_QUERIES organized by complexity",
+          "Natural language to SQL mappings",
+          "Query patterns and test cases",
+          "Utility functions for query retrieval"
+        ]
+      }
+    },
+    
+    "tools_implementation": {
+      "sql_tools.py": {
+        "classes": [
+          "SQLExecutorTool - executes queries and formats results",
+          "DatabaseInfoTool - provides metadata information"
+        ],
+        "key_methods": [
+          "execute_query() - main SQL execution",
+          "format_results_for_display() - human readable output",
+          "get_table_info() - table metadata",
+          "get_all_tables() - list tables"
+        ],
+        "features": [
+          "Automatic LIMIT addition for SELECT queries",
+          "Error handling with detailed error types",
+          "Result formatting as JSON and display text",
+          "Tool specification for LangGraph integration"
+        ]
+      },
+      "schema_tools.py": {
+        "classes": [
+          "SchemaInspectorTool - provides schema context"
+        ],
+        "key_methods": [
+          "get_table_context() - comprehensive table information",
+          "get_multiple_tables_context() - multi-table relationships",
+          "get_database_overview() - high-level database summary",
+          "suggest_tables_for_query() - AI table suggestion"
+        ],
+        "features": [
+          "Business context integration",
+          "Relationship mapping",
+          "Query-to-table suggestion using keyword matching",
+          "JOIN pattern suggestions"
+        ]
+      },
+      "validation_tools.py": {
+        "classes": [
+          "QueryValidatorTool - comprehensive SQL validation",
+          "BusinessLogicValidator - business rule validation"
+        ],
+        "validation_types": [
+          "Security validation - prevents dangerous operations",
+          "Syntax validation - checks SQL structure", 
+          "Table name validation - verifies against schema",
+          "Business logic validation - ensures proper calculations",
+          "Database validation - uses EXPLAIN for verification"
+        ],
+        "key_methods": [
+          "validate_query() - main validation function",
+          "validate_with_database() - database-level validation",
+          "validate_complete_query() - comprehensive validation"
+        ]
+      }
+    }
+  },
+
+  "key_design_decisions": {
+    "database_approach": "Direct RDS access with business-friendly schema names",
+    "semantic_modeling": "Simple semantic mapping layer in schema inspector",
+    "memory_architecture": "Hierarchical memory with conflict resolution (planned)",
+    "tool_architecture": "Modular tools with LangGraph integration",
+    "validation_strategy": "Multi-layer validation (syntax, security, business logic)"
+  },
+
+  "next_steps": {
+    "immediate_priority": "Phase 2 - Core Agent Flow",
+    "sequence": [
+      {
+        "step": 1,
+        "task": "Design Agent State Management",
+        "files_to_create": ["state/agent_state.py", "state/plan_state.py"],
+        "description": "Define what information flows between nodes, plan tracking structure"
+      },
+      {
+        "step": 2, 
+        "task": "Build Schema Inspector Node",
+        "files_to_create": ["nodes/schema_inspector.py"],
+        "description": "Node that uses schema_tools.py to provide context to planner"
+      },
+      {
+        "step": 3,
+        "task": "Build Planner Node", 
+        "files_to_create": ["nodes/planner.py"],
+        "description": "Takes user query + schema context, generates plan and SQL"
+      },
+      {
+        "step": 4,
+        "task": "Build Basic LangGraph Flow",
+        "files_to_create": ["flow/graph.py", "flow/edges.py"],
+        "description": "Wire up basic flow and test end-to-end"
+      },
+      {
+        "step": 5,
+        "task": "Create Test Runner",
+        "files_to_create": ["run/test_agent.py"], 
+        "description": "Test with sample queries from sample_queries.py"
+      }
+    ]
+  },
+
+  "testing_strategy": {
+    "sample_queries_available": [
+      "Basic: 'Show me all customers'",
+      "Filtered: 'Show me customers from Germany'", 
+      "Joins: 'Show me orders with customer names'",
+      "Aggregation: 'How many orders per country?'",
+      "Complex: 'Top 5 customers by revenue'"
+    ],
+    "validation_levels": [
+      "Tool level - test each tool independently",
+      "Node level - test individual nodes", 
+      "Flow level - test complete agent workflow",
+      "Business level - validate against business requirements"
+    ]
+  },
+
+  "environment_setup": {
+    "development_environment": "VSCode",
+    "database_connection": "Established via connection.py",
+    "required_packages": [
+      "psycopg2",
+      "langchain",
+      "langgraph", 
+      "pydantic",
+      "python-dotenv"
+    ]
+  },
+
+  "important_notes": {
+    "file_execution": [
+      "DO NOT run relationships.py and sample_queries.py directly - they are import libraries",
+      "Only explore_schema.py should be executed to generate schema information",
+      "Tools contain classes and methods - import and use, don't execute directly"
+    ],
+    "architecture_benefits": [
+      "Modular design allows independent testing",
+      "Rich business context makes agent domain-aware", 
+      "Comprehensive validation prevents errors",
+      "Progressive complexity allows incremental development"
+    ]
+  }
+}

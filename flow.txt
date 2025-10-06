@@ -1,0 +1,194 @@
+Entry Point:
+testing/test_phase4.py → calls agent.process_query_sync("query")
+
+Main Orchestration:
+flow/graph.py → PowerBISQLAgent.process_query()
+Creates AgentState via state/agent_state.py
+Converts to GraphState (TypedDict)
+Invokes LangGraph workflow
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Node 1: Schema Inspector
+nodes/schema_inspector.py → receives AgentState
+
+Uses these files:
+1) tools/schema_tools.py → suggests tables, gets context
+2) database/northwind_context.py → reads business descriptions
+3) database/relationships.py → gets table relationships
+4) database/sample_queries.py → finds relevant examples
+5) state/agent_state.py → detects follow-up queries
+
+Output: Updates state with selected_tables, schema_context, business_intent
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Edge Decision:
+flow/edge.py → should_continue_to_planner() checks errors/tables → returns "continue"
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Node 2: Planner
+nodes/planner.py → receives AgentState
+
+Uses these files:
+1) database/sample_queries.py → loads 23 examples for embeddings
+
+    ChromaDB + FastEmbed → semantic similarity search for top 3 examples
+    LangChain prompts → builds few-shot prompt
+    Gemini LLM → generates SQL with full context (business + schema + examples)
+    Regex cleaning → formats SQL
+
+Output: Updates state with generated_sql, cleaned_sql, few_shot_examples
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Edge Decision:
+flow/edge.py → should_continue_to_planner() → returns "continue"
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Node 3: Query Validator
+flow/graph.py → QueryValidatorNode
+
+Uses these files:
+1) tools/validation_tools.py → validate_complete_query()
+
+    Security check (blocks DROP, injections)
+    Syntax check (parentheses, quotes)
+    Business logic check (revenue calculations)
+    Database EXPLAIN check
+
+Output: Updates state with validation_results, validation_passed (True/False)
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Edge Decision:
+flow/edge.py → should_execute_query()
+
+If valid → "execute"
+If invalid + can retry → "retry" (loops back to Planner)
+If max retries → "error"
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Node 4: SQL Executor
+flow/graph.py → SQLExecutorNode
+
+Uses these files:
+1)tools/sql_tools.py → sql_executor.execute_query()
+2)database/connection.py → get_db_connection() connects to AWS RDS
+    Executes query on PostgreSQL Northwind database
+
+Output: Updates state with execution_results, execution_successful, result_count, 
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Edge Decision:
+flow/edge.py → should_retry_query()
+
+If success → "success"
+If error + retryable → "retry" (loops to Planner)
+If non-retryable → "error"
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Node 5: Output Formatter
+flow/graph.py → OutputFormatterNode
+
+Uses these files:
+1) tools/sql_tools.py → formats results into table display
+    Adds context (SQL used, execution time, tables)
+    Adds AI message to conversation history
+
+Output: Updates state with processing_complete=True, adds formatted response to messages
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Return to Test:
+flow/graph.py → converts GraphState back to AgentState → returns final state to test_phase4.py
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Supporting Files:
+
+1) state/agent_state.py - Pydantic state model with all fields + helper methods
+2) state/plan_state.py - Execution plan tracking (currently minimal usage)
+3) flow/graph.py - GraphState TypedDict + conversion functions
+4) flow/edge.py - All conditional logic for routing
+
+Data flows: Query → State → Nodes → Tools → Database → Results → State → Response
+
+Edge Decision Importance:
+Edge decisions are conditional routing logic that determine which node to execute next based on the current state.
+Think of it like an "if-then" branches in the workflow.
+
+Each node produces output that might require different next steps:
+
+Schema Inspector → Did we find tables? Any errors?
+
+✅ Tables found → Go to Planner
+❌ No tables/errors → Stop (END)
+
+
+Planner → Did SQL generation succeed?
+
+✅ SQL generated → Go to Validator
+❌ Generation failed → Stop (END)
+
+
+Query Validator → Is SQL safe and valid?
+
+✅ Valid → Go to Executor
+⚠️ Invalid but retryable → Go back to Planner (retry)
+❌ Security issue → Stop (END)
+
+
+SQL Executor → Did query execute successfully?
+
+✅ Success → Go to Output Formatter
+⚠️ Error but retryable (syntax) → Go back to Planner (retry)
+❌ Connection error → Stop (END)
+
+
+Output Formatter → Always → END (final node)
+
+1)  should_continue_to_planner() - Used after Schema Inspector & Planner
+    Checks: errors, selected_tables, retry limits
+    Returns: "continue" or "error"
+
+2)  should_execute_query() - Used after Validator
+    Checks: validation_passed, error type, retry count
+    Returns: "execute", "retry", or "error"   
+
+3)  should_retry_query() - Used after Executor
+    Checks: execution_successful, error category (syntax vs permission vs connection)
+    Returns: "success", "retry", or "error"   
+
+Example Flow for now:
+
+User: "Show me customers from Germany"
+
+Schema Inspector → ✅ Found "customers" table
+├─ Edge: should_continue_to_planner() checks state
+└─ Returns "continue" → Route to Planner
+
+Planner → ✅ Generated SQL
+├─ Edge: should_continue_to_planner() checks state  
+└─ Returns "continue" → Route to Validator
+
+Validator → ❌ SQL has syntax error
+├─ Edge: should_execute_query() checks validation_passed=False
+├─ Retry count = 0 < 3
+└─ Returns "retry" → Route BACK to Planner (attempt 2)
+
+Planner → ✅ Generated corrected SQL
+Validator → ✅ SQL is valid
+├─ Edge: should_execute_query() checks validation_passed=True
+└─ Returns "execute" → Route to Executor
+
+Executor → ✅ Query executed successfully
+├─ Edge: should_retry_query() checks execution_successful=True
+└─ Returns "success" → Route to Output Formatter
+
+Output Formatter → Formats results → END
