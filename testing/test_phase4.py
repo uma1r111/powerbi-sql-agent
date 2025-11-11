@@ -18,7 +18,7 @@ async def test_agent():
     pd.set_option("display.max_colwidth", None)
     
     # Run query
-    result = await agent.process_query("Show me orders with customer names")
+    result = await agent.process_query("Show customer from Germany")
 
     print("\n=== FINAL RESULT ===")
     print(f"✅ Success: {result.processing_complete}")
