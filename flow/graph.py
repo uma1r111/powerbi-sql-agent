@@ -54,6 +54,10 @@ class GraphState(TypedDict):
     session_id: str
     timestamp: str 
     requires_user_input: bool
+    # Response formatting fields
+    response_format: str
+    show_sql: bool
+    show_execution_details: bool
 
 def agent_state_to_graph_state(agent_state: AgentState) -> GraphState:
     """Convert AgentState to GraphState"""
@@ -84,7 +88,10 @@ def agent_state_to_graph_state(agent_state: AgentState) -> GraphState:
         is_follow_up_query=agent_state.is_follow_up_query,
         session_id=str(agent_state.session_id),
         timestamp=str(agent_state.timestamp),
-        requires_user_input=agent_state.requires_user_input
+        requires_user_input=agent_state.requires_user_input,
+        response_format=agent_state.response_format,
+        show_sql=agent_state.show_sql,
+        show_execution_details=agent_state.show_execution_details
     )
 
 def graph_state_to_agent_state(graph_state: GraphState) -> AgentState:
@@ -116,7 +123,10 @@ def graph_state_to_agent_state(graph_state: GraphState) -> AgentState:
         is_follow_up_query=graph_state["is_follow_up_query"],
         session_id=graph_state["session_id"],
         #timestamp=datetime.fromisoformat(graph_state["timestamp"]) if graph_state["timestamp"] else datetime.now(),
-        requires_user_input=graph_state["requires_user_input"]
+        requires_user_input=graph_state["requires_user_input"],
+        response_format=graph_state.get("response_format", "conversational"),
+        show_sql=graph_state.get("show_sql", False),
+        show_execution_details=graph_state.get("show_execution_details", False)
     )
     return agent_state
 
@@ -209,6 +219,13 @@ class OutputFormatterNode:
     
     def __init__(self):
         self.node_name = "output_formatter"
+        # Initialize LLM for conversational response generation
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        import os
+        self.llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",
+            temperature=0.7  # Slightly higher for more natural responses
+        )
     
     def __call__(self, state: GraphState) -> GraphState:
         logger.info("Formatting output")
@@ -219,15 +236,12 @@ class OutputFormatterNode:
             
             # Format the response based on execution results
             if agent_state.execution_successful:
-                # Format successful results
                 formatted_output = self._format_successful_results(agent_state)
-                response_message = f"Query executed successfully!\n\n{formatted_output}"
             else:
-                # Format error response
-                response_message = self._format_error_response(agent_state)
+                formatted_output = self._format_error_response(agent_state)
             
             # Add AI response to conversation history
-            agent_state.add_ai_message(response_message)
+            agent_state.add_ai_message(formatted_output)
             
             # Mark processing as complete
             agent_state.processing_complete = True
@@ -245,47 +259,161 @@ class OutputFormatterNode:
             return agent_state_to_graph_state(agent_state)
     
     def _format_successful_results(self, state: AgentState) -> str:
-        """Format successful query results for display"""
+        """Format successful query results"""
         results = state.execution_results
         
         if not results.get("data"):
-            return "Query executed successfully but returned no results."
+            return "I didn't find any results matching your query. The query executed successfully but returned no data."
         
-        # Use the SQL executor's formatting method
-        formatted_display = sql_executor.format_results_for_display(results)
+        data = results["data"]
         
-        # Add some context
-        context_info = f"""
-SQL Query Used:
-{state.cleaned_sql}
+        # Route to appropriate formatter based on response_format
+        if state.response_format == "detailed":
+            return self._format_detailed_response(state, data)
+        else:
+            return self._format_conversational_response(state, data)
+    
+    def _format_conversational_response(self, state: AgentState, data: list) -> str:
+        """Generate natural language conversational response"""
+        
+        # Prepare data summary for LLM
+        data_summary = self._prepare_data_summary(data)
+        
+        # Build prompt for conversational response
+        prompt = f"""You are a helpful data analyst assistant. Convert this database query result into a natural, conversational response.
 
-Execution Time: {state.execution_time:.2f} seconds
-Tables Involved: {', '.join(state.selected_tables)}
+User asked: "{state.user_query}"
+Number of results: {len(data)}
+Data sample: {data_summary}
+
+Instructions:
+1. Start with a natural summary (e.g., "I found X customers from Germany")
+2. Highlight 2-3 key insights or interesting data points
+3. Use friendly, conversational language
+4. If there are many results, mention the total and highlight top items
+5. End with an offer to provide more details if needed
+6. Keep the response concise (3-5 sentences max)
+7. Do NOT show raw SQL or technical details unless specifically asked
+
+Generate a conversational response:"""
+
+        try:
+            # Generate response using LLM
+            conversational_text = self.llm.invoke(prompt).content
+        except Exception as e:
+            logger.error(f"LLM response generation failed: {e}")
+            # Fallback to template-based response
+            conversational_text = self._fallback_conversational_response(state, data)
+        
+        # Add optional metadata
+        response = conversational_text
+        
+        if state.show_sql:
+            response += f"\n\n📝 **SQL Query:**\n```sql\n{state.cleaned_sql}\n```"
+        
+        if state.show_execution_details:
+            response += f"\n\n⏱️ Execution time: {state.execution_time:.2f}s | Tables: {', '.join(state.selected_tables)}"
+        
+        return response
+    
+    def _format_detailed_response(self, state: AgentState, data: list) -> str:
+        """Format detailed response with full table"""
+        
+        # Use SQL executor's formatting
+        formatted_display = sql_executor.format_results_for_display(state.execution_results)
+        
+        # Add context
+        context_info = f"""
+📊 **Query Results**
+
+{formatted_display}
+
+**Query Details:**
+- SQL: {state.cleaned_sql}
+- Execution Time: {state.execution_time:.2f} seconds
+- Tables Used: {', '.join(state.selected_tables)}
+- Total Rows: {len(data)}
 """
         
-        return formatted_display + "\n" + context_info
+        return context_info
+    
+    def _prepare_data_summary(self, data: list) -> str:
+        """Prepare a concise summary of data for LLM"""
+        if not data:
+            return "No data"
+        
+        # Show first 3 rows, key columns only
+        sample_size = min(3, len(data))
+        sample_data = data[:sample_size]
+        
+        # Get column names
+        columns = list(sample_data[0].keys()) if sample_data else []
+        
+        # Format as simple text
+        summary = f"Columns: {', '.join(columns)}\n"
+        summary += f"Sample rows ({sample_size} of {len(data)}):\n"
+        
+        for i, row in enumerate(sample_data, 1):
+            row_str = ", ".join([f"{k}: {v}" for k, v in list(row.items())[:4]])  # First 4 columns
+            summary += f"  {i}. {row_str}\n"
+        
+        return summary
+    
+    def _fallback_conversational_response(self, state: AgentState, data: list) -> str:
+        """Simple template-based response when LLM fails"""
+        
+        count = len(data)
+        
+        # Determine response based on query intent
+        if state.business_intent == "aggregation":
+            # Single value result
+            if count == 1 and len(data[0]) == 1:
+                value = list(data[0].values())[0]
+                return f"The result is: **{value}**"
+        
+        # Multiple results
+        if count <= 5:
+            return f"I found {count} result{'s' if count != 1 else ''} for your query. Here they are:\n\n{self._format_simple_list(data)}"
+        else:
+            top_items = self._format_simple_list(data[:5])
+            return f"I found {count} results. Here are the top 5:\n\n{top_items}\n\n_Type '/detailed' to see the complete list._"
+    
+    def _format_simple_list(self, data: list) -> str:
+        """Format data as a simple bullet list"""
+        if not data:
+            return ""
+        
+        items = []
+        for i, row in enumerate(data, 1):
+            # Get first 3 columns
+            values = list(row.values())[:3]
+            item_str = " | ".join([str(v) for v in values])
+            items.append(f"{i}. {item_str}")
+        
+        return "\n".join(items)
     
     def _format_error_response(self, state: AgentState) -> str:
         """Format error response"""
-        error_msg = "I encountered an issue processing your query:\n\n"
+        error_msg = "❌ I encountered an issue processing your query:\n\n"
         
         # Add specific error details
         if state.errors:
-            error_msg += f"Error: {state.errors[-1]}\n\n"
+            error_msg += f"**Error:** {state.errors[-1]}\n\n"
         
         # Add the attempted SQL for reference
-        if state.cleaned_sql:
-            error_msg += f"Attempted SQL:\n{state.cleaned_sql}\n\n"
+        if state.cleaned_sql and state.show_sql:
+            error_msg += f"**Attempted SQL:**\n```sql\n{state.cleaned_sql}\n```\n\n"
         
         # Add suggestions if available
         if state.validation_results and "recommendations" in state.validation_results:
             recommendations = state.validation_results["recommendations"][:3]
             if recommendations:
-                error_msg += "Suggestions:\n"
+                error_msg += "**Suggestions:**\n"
                 for i, rec in enumerate(recommendations, 1):
                     error_msg += f"{i}. {rec}\n"
         
         return error_msg
+
 
 class PowerBISQLAgent:
     """Main agent class that orchestrates the LangGraph workflow"""

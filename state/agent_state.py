@@ -73,6 +73,11 @@ class AgentState(BaseModel):
     requires_user_input: bool = Field(default=False, description="Whether user input is needed")
     is_follow_up_query: bool = Field(default=False, description="Whether this is a follow-up question")
     processing_complete: bool = Field(default=False, description="Whether processing is complete")
+
+    # === RESPONSE FORMATTING (NEW) ===
+    response_format: str = Field(default="conversational", description="Response format: conversational or detailed")
+    show_sql: bool = Field(default=False, description="Whether to show SQL in response")
+    show_execution_details: bool = Field(default=False, description="Show execution time and metadata")
     
     class Config:
         arbitrary_types_allowed = True
