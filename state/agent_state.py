@@ -6,6 +6,8 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain.memory import ChatMessageHistory
 from datetime import datetime
 import uuid
+import re
+from asyncssh import logger
 
 class AgentState(BaseModel):
     """
@@ -78,6 +80,36 @@ class AgentState(BaseModel):
     response_format: str = Field(default="conversational", description="Response format: conversational or detailed")
     show_sql: bool = Field(default=False, description="Whether to show SQL in response")
     show_execution_details: bool = Field(default=False, description="Show execution time and metadata")
+
+        # === CONVERSATION CONTEXT (NEW) ===
+    conversation_context: Dict[str, Any] = Field(
+        default_factory=dict, 
+        description="Context from previous turns in conversation"
+    )
+    last_query_topic: str = Field(
+        default="", 
+        description="Topic of the last query (e.g., 'out_of_stock_products')"
+    )
+    last_tables_used: List[str] = Field(
+        default_factory=list, 
+        description="Tables used in the last query"
+    )
+    last_result_summary: str = Field(
+        default="", 
+        description="Brief summary of last query results"
+    )
+    last_user_intent: str = Field(
+        default="", 
+        description="What the user was trying to accomplish in last query"
+    )
+    active_entities: Dict[str, Any] = Field(
+        default_factory=dict, 
+        description="Currently discussed entities (customers, products, etc.)"
+    )
+    context_window: List[Dict[str, Any]] = Field(
+        default_factory=list, 
+        description="Last 5 query contexts for deep history"
+    )
     
     class Config:
         arbitrary_types_allowed = True
@@ -146,6 +178,91 @@ class AgentState(BaseModel):
         """Get recent conversation context for prompt injection"""
         return self.messages[-max_messages:] if len(self.messages) > max_messages else self.messages
     
+    def update_conversation_context(self, query_result: Dict[str, Any]) -> None:
+        """Update conversation context after each successful query"""
+        
+        # Store current query context
+        current_context = {
+            "query": self.user_query,
+            "tables": self.selected_tables.copy(),
+            "intent": self.business_intent,
+            "result_count": self.result_count,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Update context window (keep last 5)
+        self.context_window.append(current_context)
+        if len(self.context_window) > 5:
+            self.context_window.pop(0)
+        
+        # Update immediate context
+        self.last_query_topic = self._extract_topic(self.user_query)
+        self.last_tables_used = self.selected_tables.copy()
+        self.last_result_summary = self._create_result_summary(query_result)
+        self.last_user_intent = self.business_intent
+        
+        # Update active entities
+        self._update_active_entities(query_result)
+    
+    def _extract_topic(self, query: str) -> str:
+        """Extract main topic from query"""
+        query_lower = query.lower()
+        
+        # Topic patterns
+        topics = {
+            "customers": ["customer", "client", "company"],
+            "orders": ["order", "purchase", "sale"],
+            "products": ["product", "item", "inventory"],
+            "revenue": ["revenue", "sales", "income"],
+            "employees": ["employee", "staff", "worker"],
+            "out_of_stock": ["out of stock", "unavailable", "zero inventory"],
+            "shipping": ["ship", "delivery", "freight"]
+        }
+        
+        for topic, keywords in topics.items():
+            if any(keyword in query_lower for keyword in keywords):
+                return topic
+        
+        return "general"
+    
+    def _create_result_summary(self, query_result: Dict[str, Any]) -> str:
+        """Create a brief summary of query results"""
+        if not query_result or not query_result.get("success"):
+            return "No results"
+        
+        count = query_result.get("row_count", 0)
+        return f"{count} results found"
+    
+    def _update_active_entities(self, query_result: Dict[str, Any]) -> None:
+        """Track entities being discussed"""
+        if self.last_query_topic:
+            self.active_entities[self.last_query_topic] = {
+                "tables": self.last_tables_used,
+                "count": self.result_count,
+                "last_accessed": datetime.now().isoformat()
+            }
+        
+        # Keep only last 3 active entities
+        if len(self.active_entities) > 3:
+            # Remove oldest
+            oldest_key = min(
+                self.active_entities.keys(),
+                key=lambda k: self.active_entities[k]["last_accessed"]
+            )
+            del self.active_entities[oldest_key]
+    
+    def get_context_for_follow_up(self) -> Dict[str, Any]:
+        """Get relevant context for follow-up query processing"""
+        return {
+            "last_topic": self.last_query_topic,
+            "last_tables": self.last_tables_used,
+            "last_summary": self.last_result_summary,
+            "last_intent": self.last_user_intent,
+            "active_entities": self.active_entities,
+            "recent_queries": self.context_window[-3:] if self.context_window else []
+        }
+
+    
     def is_ready_for_execution(self) -> bool:
         """Check if state is ready for SQL execution"""
         return (
@@ -201,19 +318,63 @@ class StateManager:
     
     @staticmethod
     def detect_follow_up_query(state: AgentState) -> bool:
-        """Detect if current query is a follow-up based on conversation history"""
+        """Enhanced follow-up detection using conversation context"""
+        
         if len(state.messages) < 2:
+            logger.info("❌ Not enough messages for follow-up (need at least 2)")
             return False
         
-        # Simple heuristics for follow-up detection
-        follow_up_indicators = [
+        query_lower = state.user_query.lower()
+        logger.info(f"🔎 Analyzing query for follow-up: '{query_lower}'")
+        
+        # Explicit follow-up indicators
+        explicit_indicators = [
             "their", "them", "those", "these", "it", "that",
             "also", "and", "what about", "how about", "can you also",
-            "list them", "show them", "tell me more"
+            "list them", "show them", "tell me more", "more details",
+            "complete list", "full list", "all of them", "the rest"
         ]
         
-        query_lower = state.user_query.lower()
-        return any(indicator in query_lower for indicator in follow_up_indicators)
+        # Check explicit indicators
+        has_explicit = any(indicator in query_lower for indicator in explicit_indicators)
+        if has_explicit:
+            logger.info(f"✅ Found explicit follow-up indicator in query")
+        
+        # Implicit patterns
+        implicit_patterns = [
+            r"^(show|list|display|give|tell)\s+(me\s+)?(the\s+)?(complete|full|entire|all)",
+            r"^(more|other|additional)\s+",
+            r"^(what|how)\s+(about|many|much)",
+        ]
+        
+        has_implicit = any(re.match(pattern, query_lower) for pattern in implicit_patterns)
+        if has_implicit:
+            logger.info(f"✅ Matched implicit follow-up pattern")
+        
+        # Check context availability
+        has_active_context = bool(state.last_query_topic or state.active_entities)
+        logger.info(f"📚 Context available: {has_active_context} (topic={state.last_query_topic}, entities={list(state.active_entities.keys())})")
+        
+        # Short query without entity mentions
+        has_no_entity = not any(
+            entity in query_lower 
+            for entity in ["customer", "order", "product", "employee", "supplier", "category"]
+        )
+        is_short_query = len(query_lower.split()) <= 5
+        
+        if has_no_entity and is_short_query and has_active_context:
+            logger.info(f"✅ Short ambiguous query with available context")
+        
+        # Final decision
+        is_follow_up = (
+            has_explicit or 
+            has_implicit or
+            (is_short_query and has_no_entity and has_active_context)
+        )
+        
+        logger.info(f"{'✅' if is_follow_up else '❌'} Final decision: is_follow_up={is_follow_up}")
+        return is_follow_up
+
     
     @staticmethod
     def should_continue_processing(state: AgentState) -> bool:

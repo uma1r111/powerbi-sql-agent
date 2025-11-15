@@ -58,6 +58,13 @@ class GraphState(TypedDict):
     response_format: str
     show_sql: bool
     show_execution_details: bool
+    conversation_context: Dict[str, Any]
+    last_query_topic: str
+    last_tables_used: List[str]
+    last_result_summary: str
+    last_user_intent: str
+    active_entities: Dict[str, Any]
+    context_window: List[Dict[str, Any]]
 
 def agent_state_to_graph_state(agent_state: AgentState) -> GraphState:
     """Convert AgentState to GraphState"""
@@ -91,7 +98,15 @@ def agent_state_to_graph_state(agent_state: AgentState) -> GraphState:
         requires_user_input=agent_state.requires_user_input,
         response_format=agent_state.response_format,
         show_sql=agent_state.show_sql,
-        show_execution_details=agent_state.show_execution_details
+        show_execution_details=agent_state.show_execution_details,
+        conversation_context=agent_state.conversation_context,
+        last_query_topic=agent_state.last_query_topic,
+        last_tables_used=agent_state.last_tables_used,
+        last_result_summary=agent_state.last_result_summary,
+        last_user_intent=agent_state.last_user_intent,
+        active_entities=agent_state.active_entities,
+        context_window=agent_state.context_window
+        
     )
 
 def graph_state_to_agent_state(graph_state: GraphState) -> AgentState:
@@ -126,7 +141,14 @@ def graph_state_to_agent_state(graph_state: GraphState) -> AgentState:
         requires_user_input=graph_state["requires_user_input"],
         response_format=graph_state.get("response_format", "conversational"),
         show_sql=graph_state.get("show_sql", False),
-        show_execution_details=graph_state.get("show_execution_details", False)
+        show_execution_details=graph_state.get("show_execution_details", False),
+        conversation_context=graph_state.get("conversation_context", {}),
+        last_query_topic=graph_state.get("last_query_topic", ""),
+        last_tables_used=graph_state.get("last_tables_used", []),
+        last_result_summary=graph_state.get("last_result_summary", ""),
+        last_user_intent=graph_state.get("last_user_intent", ""),
+        active_entities=graph_state.get("active_entities", {}),
+        context_window=graph_state.get("context_window", [])
     )
     return agent_state
 
@@ -203,6 +225,13 @@ class SQLExecutorNode:
                 agent_state.add_error(f"Query execution failed: {execution_result.get('error', 'Unknown error')}")
                 agent_state.needs_correction = True
                 agent_state.correction_attempts += 1
+
+            if agent_state.execution_successful:
+                agent_state.update_conversation_context(agent_state.execution_results)
+                logger.info(f"💾 Conversation context updated:")
+                logger.info(f"   Topic: {agent_state.last_query_topic}")
+                logger.info(f"   Tables: {agent_state.last_tables_used}")
+                logger.info(f"   Summary: {agent_state.last_result_summary}")    
             
             # Convert back to GraphState
             return agent_state_to_graph_state(agent_state)
@@ -275,27 +304,40 @@ class OutputFormatterNode:
     
     def _format_conversational_response(self, state: AgentState, data: list) -> str:
         """Generate natural language conversational response"""
+
+        data_summary = self._prepare_data_summary(data, state.user_query)
         
-        # Prepare data summary for LLM
-        data_summary = self._prepare_data_summary(data)
+        # Check if user explicitly wants full/complete list
+        user_wants_full_list = any(
+            phrase in state.user_query.lower() 
+            for phrase in ["full list", "complete list", "all of them", "show all", "entire list", "show them all"]
+        )
+        
+            # Add instruction override if needed
+        if user_wants_full_list:
+            instruction_override = "\n8. User asked for the COMPLETE list, so list ALL items, not just a sample."
+        else:
+            instruction_override = ""
         
         # Build prompt for conversational response
         prompt = f"""You are a helpful data analyst assistant. Convert this database query result into a natural, conversational response.
 
-User asked: "{state.user_query}"
-Number of results: {len(data)}
-Data sample: {data_summary}
+    User asked: "{state.user_query}"
+    Number of results: {len(data)}
+    Data sample: {data_summary}
 
-Instructions:
-1. Start with a natural summary (e.g., "I found X customers from Germany")
-2. Highlight 2-3 key insights or interesting data points
-3. Use friendly, conversational language
-4. If there are many results, mention the total and highlight top items
-5. End with an offer to provide more details if needed
-6. Keep the response concise (3-5 sentences max)
-7. Do NOT show raw SQL or technical details unless specifically asked
+    Instructions:
+    1. Start with a natural summary (e.g., "I found X customers from Germany")
+    2. Highlight key insights or interesting data points
+    3. Use friendly, conversational language
+    4. If there are many results, mention the total and highlight top items
+    5. End with an offer to provide more details if needed
+    6. Keep the response concise (3-8 sentences max)
+    7. Do NOT show raw SQL or technical details unless specifically asked
+    {instruction_override}
 
-Generate a conversational response:"""
+    Generate a conversational response:"""
+
 
         try:
             # Generate response using LLM
@@ -337,25 +379,46 @@ Generate a conversational response:"""
         
         return context_info
     
-    def _prepare_data_summary(self, data: list) -> str:
-        """Prepare a concise summary of data for LLM"""
+    def _prepare_data_summary(self, data: list, user_query: str = "") -> str:
+        """Prepare data summary with context awareness"""
         if not data:
             return "No data"
         
-        # Show first 3 rows, key columns only
-        sample_size = min(3, len(data))
+        # Determine how many rows to show based on context
+        user_query_lower = user_query.lower()
+        
+        if any(phrase in user_query_lower for phrase in ["full", "complete", "all", "entire"]):
+            # User wants everything
+            sample_size = len(data)
+            show_all = True
+        elif len(data) <= 10:
+            # Small result set - show everything
+            sample_size = len(data)
+            show_all = True
+        else:
+            # Large result set - show sample
+            sample_size = min(5, len(data))
+            show_all = False
+        
         sample_data = data[:sample_size]
         
         # Get column names
         columns = list(sample_data[0].keys()) if sample_data else []
         
-        # Format as simple text
-        summary = f"Columns: {', '.join(columns)}\n"
-        summary += f"Sample rows ({sample_size} of {len(data)}):\n"
+        # Format summary
+        if show_all:
+            summary = f"Columns: {', '.join(columns)}\n"
+            summary += f"All {len(data)} rows:\n"
+        else:
+            summary = f"Columns: {', '.join(columns)}\n"
+            summary += f"Showing {sample_size} of {len(data)} rows:\n"
         
         for i, row in enumerate(sample_data, 1):
             row_str = ", ".join([f"{k}: {v}" for k, v in list(row.items())[:4]])  # First 4 columns
             summary += f"  {i}. {row_str}\n"
+        
+        if not show_all and len(data) > sample_size:
+            summary += f"  ... and {len(data) - sample_size} more rows\n"
         
         return summary
     
@@ -541,38 +604,81 @@ class PowerBISQLAgent:
             initial_state.add_error(f"Workflow execution failed: {e}")
             return initial_state
     
-    def process_query_sync(self, user_query: str, session_id: str = None) -> AgentState:
-        """Synchronous version of process_query"""
+    def process_query_sync(self, user_query: str, session_id: str = None, existing_state: AgentState = None) -> AgentState:
+        """Synchronous version of process_query with context preservation"""
         logger.info(f"Processing query (sync): {user_query}")
         
-        # Create initial state
-        initial_state = StateManager.create_initial_state(user_query)
+        # Use existing state if provided, otherwise create new
+        if existing_state:
+            # CRITICAL: Preserve context but reset query-specific fields
+            initial_agent_state = existing_state
+            
+            # Update query
+            initial_agent_state.user_query = user_query
+            initial_agent_state.original_query = user_query
+            initial_agent_state.add_user_message(user_query)
+            
+            # Reset query-specific fields (but keep context!)
+            initial_agent_state.selected_tables = []  # Will be re-selected
+            initial_agent_state.schema_context = {}
+            initial_agent_state.generated_sql = ""
+            initial_agent_state.cleaned_sql = ""
+            initial_agent_state.validation_passed = False
+            initial_agent_state.validation_results = {}
+            initial_agent_state.execution_successful = False
+            initial_agent_state.execution_results = {}
+            initial_agent_state.result_count = 0
+            initial_agent_state.errors = []
+            initial_agent_state.warnings = []
+            initial_agent_state.needs_correction = False
+            initial_agent_state.correction_attempts = 0
+            initial_agent_state.processing_complete = False
+            initial_agent_state.execution_time = None
+            
+            # KEEP THESE (conversation context):
+            # - last_query_topic
+            # - last_tables_used
+            # - last_result_summary
+            # - last_user_intent
+            # - active_entities
+            # - context_window
+            # - messages (conversation history)
+            
+            logger.info(f"📚 Reusing state with context: last_topic={initial_agent_state.last_query_topic}, last_tables={initial_agent_state.last_tables_used}")
+        else:
+            # Create new state
+            initial_agent_state = StateManager.create_initial_state(user_query)
+            
+            if session_id:
+                initial_agent_state.session_id = session_id
+            
+            logger.info("📝 Created new state (no previous context)")
         
-        if session_id:
-            initial_state.session_id = session_id
-        
-        # Create execution plan  
-        plan = PlanManager.create_basic_sql_plan(user_query, [])
-        initial_state._current_plan = plan
+        # Convert to GraphState
+        initial_state = agent_state_to_graph_state(initial_agent_state)
         
         # Configure for graph execution
         config = {
             "configurable": {
-                "thread_id": session_id or initial_state.session_id
+                "thread_id": session_id or initial_agent_state.session_id
             }
         }
         
         try:
             # Execute the workflow synchronously
-            final_state = self.graph.invoke(initial_state, config)
-            final_state = graph_state_to_agent_state(final_state)
+            result = self.graph.invoke(initial_state, config)
+            
+            # Convert result back to AgentState
+            final_state = graph_state_to_agent_state(result)
+            
             logger.info(f"Query processing completed. Success: {final_state.processing_complete}")
             return final_state
             
         except Exception as e:
             logger.error(f"Workflow execution failed: {e}")
-            initial_state.add_error(f"Workflow execution failed: {e}")
-            return initial_state
+            initial_agent_state.add_error(f"Workflow execution failed: {e}")
+            return initial_agent_state
+
     
     def get_conversation_history(self, session_id: str) -> list:
         """Get conversation history for a session"""

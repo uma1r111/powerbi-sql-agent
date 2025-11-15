@@ -56,6 +56,9 @@ def main():
     
     # Track conversation for context
     conversation_count = 0
+
+    # NEW: Maintain persistent state across queries in session
+    current_state = None
     
     while True:
         try:
@@ -120,7 +123,7 @@ def main():
                     print("💡 Type /help to see available commands")
                     continue
             
-            # Process query with current settings
+            # Process query
             print("\n🔄 Processing", end="", flush=True)
             for _ in range(3):
                 print(".", end="", flush=True)
@@ -128,53 +131,47 @@ def main():
                 time.sleep(0.3)
             print()
             
-            # Create initial state with formatting preferences
-            from state.agent_state import StateManager, AgentState
-            initial_state = StateManager.create_initial_state(user_input)
-            initial_state.session_id = session_id
-            initial_state.response_format = response_format
-            initial_state.show_sql = show_sql
-            initial_state.show_execution_details = show_debug
+            # CRITICAL FIX: Pass current_state to maintain context
+            from flow.graph import agent
+            result = agent.process_query_sync(
+                user_input, 
+                session_id=session_id,
+                existing_state=current_state  # Pass previous state
+            )
             
-            # Process through agent
-            result = agent.process_query_sync(user_input, session_id=session_id)
+            # CRITICAL: Update current_state for next query
+            current_state = result
             
-            # Update result with current preferences (in case state wasn't passed correctly)
-            result.response_format = response_format
-            result.show_sql = show_sql
-            result.show_execution_details = show_debug
+            # Apply current preferences (they might have been reset)
+            current_state.response_format = response_format
+            current_state.show_sql = show_sql
+            current_state.show_execution_details = show_debug
             
-            # Get the AI response
+            # Display response
             if result.messages and len(result.messages) > 0:
                 last_message = result.messages[-1]
                 print(f"\n🤖 Agent:\n{last_message.content}\n")
             else:
                 print("\n🤖 Agent: [No response generated]\n")
             
-            # Show debug info if enabled
+            # Debug info
             if show_debug:
                 print(f"\n🔍 Debug Info:")
+                print(f"   Follow-up: {result.is_follow_up_query}")
                 print(f"   Tables: {result.selected_tables}")
-                print(f"   Success: {result.processing_complete}")
-                print(f"   Intent: {result.business_intent}")
-                print(f"   Complexity: {result.query_complexity}")
-                if result.errors:
-                    print(f"   Errors: {result.errors}")
+                print(f"   Last Topic: {result.last_query_topic}")
+                print(f"   Last Tables: {result.last_tables_used}")
+                print(f"   Context Window: {len(result.context_window)} queries")
             
             conversation_count += 1
             
         except KeyboardInterrupt:
             print("\n\n⚠️  Session interrupted.")
-            print(f"📊 Queries processed: {conversation_count}")
-            print("👋 Goodbye!")
             break
-            
         except Exception as e:
             print(f"\n❌ Error: {e}")
-            print("💡 Please try another query or type /help for assistance.\n")
-            import traceback
             if show_debug:
-                print("\n🐛 Full error trace:")
+                import traceback
                 traceback.print_exc()
 
 if __name__ == "__main__":

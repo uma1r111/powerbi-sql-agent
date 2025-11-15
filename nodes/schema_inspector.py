@@ -50,6 +50,14 @@ class SchemaInspectorNode:
             # Step 1: Detect if this is a follow-up query
             state.is_follow_up_query = StateManager.detect_follow_up_query(state)
             logger.info(f"Follow-up query detected: {state.is_follow_up_query}")
+
+            # NEW: Log conversation context if follow-up
+            if state.is_follow_up_query:
+                context = state.get_context_for_follow_up()
+                logger.info(f"📚 Using conversation context:")
+                logger.info(f"   Last topic: {context['last_topic']}")
+                logger.info(f"   Last tables: {context['last_tables']}")
+                logger.info(f"   Last summary: {context['last_summary']}")
             
             # Step 2: Suggest relevant tables based on query
             table_suggestions = self._suggest_tables_for_query(state)
@@ -92,23 +100,39 @@ class SchemaInspectorNode:
     
     def _suggest_tables_for_query(self, state: AgentState) -> Dict[str, Any]:
         """
-        Suggest relevant tables based on the user query using our schema tools
+        Suggest relevant tables based on the user query using context awareness
         """
         logger.info("🎯 Suggesting tables for query")
         
         try:
-            # Use our schema inspector tool to suggest tables
+            # Check if this is a follow-up query
+            if state.is_follow_up_query and state.last_tables_used:
+                logger.info(f"📌 Follow-up detected! Reusing tables from context: {state.last_tables_used}")
+                
+                # Use tables from previous query
+                state.selected_tables = state.last_tables_used.copy()
+                
+                # Add context information
+                return {
+                    "success": True,
+                    "suggested_tables": {
+                        table: {"relevance_score": 1.0, "source": "conversation_context"}
+                        for table in state.last_tables_used
+                    },
+                    "context_used": True,
+                    "previous_topic": state.last_query_topic,
+                    "method": "context_reuse"
+                }
+            
+            # Not a follow-up - use regular table suggestion
             suggestions = schema_inspector.suggest_tables_for_query(state.user_query)
             
             if suggestions["success"]:
-                # Extract table names from suggestions
                 suggested_tables = list(suggestions["suggested_tables"].keys())
                 state.selected_tables = suggested_tables
-                
                 logger.info(f"Suggested tables: {suggested_tables}")
                 return suggestions
             else:
-                # Fallback: suggest tables based on conversation history
                 return self._fallback_table_suggestion(state)
                 
         except Exception as e:
