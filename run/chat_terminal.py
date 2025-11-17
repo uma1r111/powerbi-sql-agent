@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flow.graph import agent
+from tools.error_manager import error_manager
 
 
 def print_banner():
@@ -17,6 +18,7 @@ def print_banner():
     print("  /simple       - Switch to conversational view (default)")
     print("  /sql on       - Show SQL queries in responses")
     print("  /sql off      - Hide SQL queries")
+    print("  /stats        - Show error statistics")
     print("  /debug on     - Show execution details")
     print("  /debug off    - Hide execution details")
     print("  /help         - Show this help")
@@ -116,6 +118,20 @@ def main():
                     session_id = f"terminal_session_{conversation_count + 1}"
                     conversation_count = 0
                     print("✅ Conversation history cleared. Starting fresh session.")
+                    continue
+
+                elif command == '/stats':
+                    stats = error_manager.get_error_stats()
+                    print("\n📊 Error Statistics for this session:")
+                    print(f"Total Errors: {stats['total_errors']}")
+                    print(f"Resolved: {stats['resolved']} ({stats['resolution_rate']:.1f}%)")
+                    print(f"Retryable: {stats['retryable']}")
+                    print("\nBy Category:")
+                    for category, count in stats['by_category'].items():
+                        print(f"  {category}: {count}")
+                    print("\nBy Severity:")
+                    for severity, count in stats['by_severity'].items():
+                        print(f"  {severity}: {count}")
                     continue
                 
                 else:

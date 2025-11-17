@@ -21,6 +21,8 @@ from nodes.planner import planner_node
 from tools.sql_tools import sql_executor
 from tools.validation_tools import query_validator, validate_complete_query
 
+from tools.error_manager import error_manager
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -177,9 +179,24 @@ class QueryValidatorNode:
             agent_state.validation_results = validation_result
             agent_state.validation_passed = validation_result["success"]
             
-            # Add any warnings or errors
+            # NEW: Extract detailed error information
+            if not validation_result["success"] and "error_details" in validation_result:
+                for error_detail in validation_result["error_details"]:
+                    # Store detailed error info
+                    error_info = {
+                        "code": error_detail.error_type.code,
+                        "category": error_detail.error_type.category,
+                        "severity": error_detail.error_type.severity,
+                        "user_message": error_detail.get_user_message(),
+                        "retryable": error_detail.error_type.retryable
+                    }
+                    agent_state.add_error(error_detail.get_user_message())
+                    
+                    # Log structured error
+                    logger.error(f"Validation error: {error_info}")
+            
+            # Add any warnings or errors (existing logic)
             if not validation_result["success"]:
-                agent_state.add_error("Query validation failed")
                 agent_state.needs_correction = True
                 agent_state.correction_attempts += 1
             
@@ -192,7 +209,7 @@ class QueryValidatorNode:
             agent_state = graph_state_to_agent_state(state)
             agent_state.add_error(error_msg)
             return agent_state_to_graph_state(agent_state)
-
+        
 class SQLExecutorNode:
     """Node for executing validated SQL queries"""
     
@@ -203,7 +220,6 @@ class SQLExecutorNode:
         logger.info("Executing SQL query")
         
         try:
-            # Convert to AgentState
             agent_state = graph_state_to_agent_state(state)
             
             # Execute the query
@@ -221,17 +237,30 @@ class SQLExecutorNode:
             if execution_result["success"]:
                 agent_state.result_count = execution_result.get("row_count", 0)
                 logger.info(f"Query executed successfully. Returned {agent_state.result_count} rows")
-            else:
-                agent_state.add_error(f"Query execution failed: {execution_result.get('error', 'Unknown error')}")
-                agent_state.needs_correction = True
-                agent_state.correction_attempts += 1
-
-            if agent_state.execution_successful:
+                
+                # Update conversation context (existing)
                 agent_state.update_conversation_context(agent_state.execution_results)
-                logger.info(f"💾 Conversation context updated:")
-                logger.info(f"   Topic: {agent_state.last_query_topic}")
-                logger.info(f"   Tables: {agent_state.last_tables_used}")
-                logger.info(f"   Summary: {agent_state.last_result_summary}")    
+            else:
+                # NEW: Handle errors with error manager
+                error_detail = execution_result.get("error_detail")
+                
+                if error_detail:
+                    # Use user-friendly message
+                    user_message = execution_result.get("user_message", execution_result.get("error"))
+                    agent_state.add_error(user_message)
+                    
+                    # Log structured error
+                    logger.error(f"Execution error: {error_detail.to_dict()}")
+                    
+                    # Check if retryable
+                    if error_detail.error_type.retryable:
+                        agent_state.needs_correction = True
+                        agent_state.correction_attempts += 1
+                else:
+                    # Fallback for unclassified errors
+                    agent_state.add_error(f"Query execution failed: {execution_result.get('error', 'Unknown error')}")
+                    agent_state.needs_correction = True
+                    agent_state.correction_attempts += 1
             
             # Convert back to GraphState
             return agent_state_to_graph_state(agent_state)
@@ -242,6 +271,7 @@ class SQLExecutorNode:
             agent_state = graph_state_to_agent_state(state)
             agent_state.add_error(error_msg)
             return agent_state_to_graph_state(agent_state)
+
 
 class OutputFormatterNode:
     """Node for formatting and presenting results"""
@@ -456,7 +486,30 @@ class OutputFormatterNode:
         return "\n".join(items)
     
     def _format_error_response(self, state: AgentState) -> str:
-        """Format error response"""
+        """Format error response with enhanced schema inspection error handling"""
+        
+        # NEW: Check for schema inspection failure first
+        if not state.selected_tables:
+            # Use the error message already formatted by schema inspector
+            if state.errors:
+                return state.errors[-1]
+            
+            # Fallback: generic schema error
+            from database.northwind_context import BUSINESS_CONTEXT
+            available_tables = list(BUSINESS_CONTEXT.keys())
+            
+            return f"""❌ I couldn't identify which database tables to use for your query: "{state.user_query}"
+
+    📋 **Available tables:**
+    {chr(10).join(f"  • {table}" for table in sorted(available_tables))}
+
+    💡 **Try asking:**
+    • Show me data from customers
+    • List all orders
+    • Show me products
+    """
+        
+        # Original error formatting for other errors
         error_msg = "❌ I encountered an issue processing your query:\n\n"
         
         # Add specific error details
@@ -476,7 +529,6 @@ class OutputFormatterNode:
                     error_msg += f"{i}. {rec}\n"
         
         return error_msg
-
 
 class PowerBISQLAgent:
     """Main agent class that orchestrates the LangGraph workflow"""

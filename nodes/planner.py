@@ -21,6 +21,8 @@ from state.plan_state import ExecutionPlan, PlanManager, StepStatus
 from database.sample_queries import SAMPLE_QUERIES, get_queries_with_tables
 from database.relationships import COMMON_JOIN_PATTERNS
 
+from tools.error_manager import error_manager
+
 # Google Gemini API imports
 import os
 from dotenv import load_dotenv
@@ -276,13 +278,19 @@ Generate ONLY the SQL query, no explanations."""
     
     def _generate_sql_query(self, state: AgentState) -> str:
         """
-        Generate SQL query using schema context and few-shot learning
+        Generate SQL query with error context if retrying
         """
         logger.info("⚡ Generating SQL query")
         
         try:
             # Prepare context for the prompt
             context = self._prepare_prompt_context(state)
+            
+            # NEW: Add error recovery guidance if this is a retry
+            error_guidance = ""
+            if state.needs_correction and state.correction_attempts > 0:
+                error_guidance = self._get_error_recovery_guidance(state)
+                logger.info(f"Including error recovery guidance (attempt {state.correction_attempts})")
             
             # Create few-shot prompt dynamically
             few_shot_prompt = FewShotChatMessagePromptTemplate(
@@ -291,9 +299,14 @@ Generate ONLY the SQL query, no explanations."""
                 input_variables=["input"]
             )
             
+            # Enhance main prompt with error guidance
+            enhanced_prompt_template = self.main_prompt_template
+            if error_guidance:
+                enhanced_prompt_template += f"\n\n{error_guidance}"
+            
             # Create the main prompt
             final_prompt = ChatPromptTemplate.from_messages([
-                ("system", self.main_prompt_template),
+                ("system", enhanced_prompt_template),
                 few_shot_prompt,
                 MessagesPlaceholder(variable_name="messages"),
                 ("human", "{input}"),
@@ -309,7 +322,7 @@ Generate ONLY the SQL query, no explanations."""
                 "table_info": context["table_info"],
                 "business_context": context["business_context"],
                 "relationships_info": context["relationships_info"],
-                "few_shot_examples": "",  # Already included in few_shot_prompt
+                "few_shot_examples": "",
                 "messages": state.get_conversation_context()
             })
             
@@ -317,8 +330,51 @@ Generate ONLY the SQL query, no explanations."""
             
         except Exception as e:
             logger.error(f"SQL generation failed: {e}")
-            # Fallback to simple query generation
             return self._generate_fallback_query(state)
+
+    def _get_error_recovery_guidance(self, state: AgentState) -> str:
+        """
+        Get error recovery guidance for the LLM based on previous errors
+        
+        NEW METHOD
+        """
+        if not state.errors:
+            return ""
+        
+        # Get the most recent error details
+        validation_results = state.validation_results
+        execution_results = state.execution_results
+        
+        guidance_parts = ["PREVIOUS ATTEMPT FAILED - ERROR RECOVERY:"]
+        
+        # Check for validation errors with details
+        if validation_results and "error_details" in validation_results:
+            for error_detail in validation_results["error_details"]:
+                recovery_guidance = error_manager.get_recovery_guidance_for_llm(error_detail)
+                guidance_parts.append(recovery_guidance)
+        
+        # Check for execution errors with details
+        elif execution_results and "error_detail" in execution_results:
+            error_detail = execution_results["error_detail"]
+            recovery_guidance = error_manager.get_recovery_guidance_for_llm(error_detail)
+            guidance_parts.append(recovery_guidance)
+        
+        # Fallback to generic error guidance
+        else:
+            last_error = state.errors[-1] if state.errors else "Unknown error"
+            guidance_parts.append(f"""
+    Error: {last_error}
+
+    Please analyze what went wrong and generate a corrected SQL query.
+    Pay special attention to:
+    - Table names (check they exist in schema)
+    - Column names (verify they exist in the tables)
+    - SQL syntax (ensure proper structure)
+    - Business logic (use correct calculations)
+    """)
+        
+        return "\n".join(guidance_parts)
+
     
     def _prepare_prompt_context(self, state: AgentState) -> Dict[str, str]:
         """Prepare context for SQL generation prompt"""

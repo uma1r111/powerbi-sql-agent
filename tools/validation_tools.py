@@ -6,6 +6,8 @@ import psycopg2
 from typing import Dict, List, Any, Optional, Tuple
 from database.connection import get_db_connection
 from database.northwind_context import BUSINESS_CONTEXT
+from tools.error_manager import error_manager, ErrorDetail
+from config.error_config import ErrorCategory, ErrorSeverity
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -38,14 +40,14 @@ class QueryValidatorTool:
     
     def validate_query(self, sql_query: str, schema_context: Optional[Dict] = None) -> Dict[str, Any]:
         """
-        Comprehensive query validation
+        Comprehensive query validation with enhanced error classification
         
         Args:
             sql_query: The SQL query to validate
             schema_context: Optional schema context for enhanced validation
             
         Returns:
-            Dict containing validation results and suggestions
+            Dict containing validation results with detailed error information
         """
         results = {
             "success": True,
@@ -54,10 +56,11 @@ class QueryValidatorTool:
             "suggestions": [],
             "query": sql_query.strip(),
             "is_safe": True,
-            "estimated_complexity": "low"
+            "estimated_complexity": "low",
+            "error_details": []  # NEW: Detailed error objects
         }
         
-        # Run all validation checks
+        # Run all validation checks (existing methods)
         self._check_security(sql_query, results)
         self._check_syntax(sql_query, results)
         self._check_table_names(sql_query, results)
@@ -68,10 +71,22 @@ class QueryValidatorTool:
         if schema_context:
             self._check_column_names(sql_query, schema_context, results)
         
+        # NEW: Classify all errors using error manager
+        for error_msg in results["errors"]:
+            error_detail = error_manager.classify_error(
+                error_message=error_msg,
+                error_context={
+                    "query": sql_query,
+                    "validation_stage": "pre_execution"
+                }
+            )
+            results["error_details"].append(error_detail)
+        
         # Final success determination
         results["success"] = len(results["errors"]) == 0
         
         return results
+
     
     def _check_security(self, query: str, results: Dict) -> None:
         """
@@ -99,7 +114,7 @@ class QueryValidatorTool:
     
     def _check_syntax(self, query: str, results: Dict) -> None:
         """
-        Basic syntax validation
+        Enhanced syntax validation with specific error classification
         """
         query_stripped = query.strip()
         
@@ -116,7 +131,12 @@ class QueryValidatorTool:
             
             # Check for balanced parentheses
             if query_stripped.count('(') != query_stripped.count(')'):
-                results["errors"].append("Unbalanced parentheses in query")
+                open_count = query_stripped.count('(')
+                close_count = query_stripped.count(')')
+                if open_count > close_count:
+                    results["errors"].append(f"Unbalanced parentheses: {open_count - close_count} unclosed opening parenthesis")
+                else:
+                    results["errors"].append(f"Unbalanced parentheses: {close_count - open_count} extra closing parenthesis")
             
             # Check for proper semicolon usage
             semicolon_count = query_stripped.count(';')
@@ -133,13 +153,17 @@ class QueryValidatorTool:
         single_quote_count = query_stripped.count("'")
         if single_quote_count % 2 != 0:
             results["errors"].append("Unclosed single quotes detected")
+        
+        double_quote_count = query_stripped.count('"')
+        if double_quote_count % 2 != 0:
+            results["errors"].append("Unclosed double quotes detected")
     
+ 
     def _check_table_names(self, query: str, results: Dict) -> None:
         """
-        Validate table names against known schema
+        Validate table names with intelligent suggestions
         """
         # Extract potential table names from query
-        # Simple regex to find words after FROM and JOIN
         table_patterns = [
             r'FROM\s+(\w+)',
             r'JOIN\s+(\w+)',
@@ -157,7 +181,23 @@ class QueryValidatorTool:
             if table not in self.valid_tables:
                 # Check for common aliases or variations
                 if not self._is_likely_alias(table, query):
-                    results["warnings"].append(f"Table '{table}' not found in schema. Available tables: {', '.join(sorted(self.valid_tables))}")
+                    # Use error manager to get suggestions
+                    available_tables = list(self.valid_tables)
+                    suggestions = error_manager.suggest_alternatives(
+                        error_manager.classify_error(
+                            f"Table '{table}' not found",
+                            {"table_name": table, "query": query}
+                        ),
+                        available_tables
+                    )
+                    
+                    error_msg = f"Table '{table}' not found in schema."
+                    if suggestions:
+                        error_msg += f" Did you mean: {', '.join(suggestions)}?"
+                    else:
+                        error_msg += f" Available tables: {', '.join(sorted(self.valid_tables))}"
+                    
+                    results["warnings"].append(error_msg)
     
     def _check_query_structure(self, query: str, results: Dict) -> None:
         """

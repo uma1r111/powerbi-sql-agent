@@ -3,8 +3,10 @@
 import psycopg2
 import json
 import logging
+import re
 from typing import Dict, List, Any, Optional
 from database.connection import get_db_connection
+from tools.error_manager import error_manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,14 +23,7 @@ class SQLExecutorTool:
         
     def execute_query(self, query: str, limit: Optional[int] = 100) -> Dict[str, Any]:
         """
-        Execute SQL query and return formatted results
-        
-        Args:
-            query: SQL query string
-            limit: Maximum number of rows to return (default 100)
-            
-        Returns:
-            Dict containing success status, data, metadata, and any errors
+        Execute SQL query with enhanced error capture and classification
         """
         try:
             # Add LIMIT if not present and it's a SELECT query
@@ -58,7 +53,8 @@ class SQLExecutorTool:
                     "data": formatted_results,
                     "row_count": len(results),
                     "column_names": column_names,
-                    "message": f"Query executed successfully. Returned {len(results)} rows."
+                    "message": f"Query executed successfully. Returned {len(results)} rows.",
+                    "error_detail": None  # NEW
                 }
                 
             else:
@@ -72,7 +68,8 @@ class SQLExecutorTool:
                     "data": None,
                     "row_count": row_count,
                     "column_names": None,
-                    "message": f"Query executed successfully. {row_count} rows affected."
+                    "message": f"Query executed successfully. {row_count} rows affected.",
+                    "error_detail": None  # NEW
                 }
             
             cursor.close()
@@ -82,6 +79,23 @@ class SQLExecutorTool:
             
         except psycopg2.Error as db_error:
             logger.error(f"Database error: {db_error}")
+            
+            # NEW: Classify the database error
+            error_detail = error_manager.classify_error(
+                error_message=str(db_error),
+                error_context={
+                    "query": query,
+                    "error_type": "database_execution",
+                    "error_class": db_error.__class__.__name__
+                }
+            )
+            
+            # Get user-friendly message
+            user_message = error_manager.format_user_friendly_message(
+                error_detail,
+                suggestions=self._get_error_suggestions(db_error, query)
+            )
+            
             return {
                 "success": False,
                 "query": query,
@@ -89,12 +103,26 @@ class SQLExecutorTool:
                 "row_count": 0,
                 "column_names": None,
                 "error": str(db_error),
-                "error_type": "database_error",
-                "message": f"Database error: {db_error}"
+                "error_type": error_detail.error_type.code,  # NEW
+                "error_category": error_detail.error_type.category,  # NEW
+                "error_severity": error_detail.error_type.severity,  # NEW
+                "error_detail": error_detail,  # NEW
+                "user_message": user_message,  # NEW
+                "message": user_message
             }
             
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
+            
+            # NEW: Classify unexpected errors
+            error_detail = error_manager.classify_error(
+                error_message=str(e),
+                error_context={
+                    "query": query,
+                    "error_type": "unexpected"
+                }
+            )
+            
             return {
                 "success": False,
                 "query": query,
@@ -102,9 +130,38 @@ class SQLExecutorTool:
                 "row_count": 0,
                 "column_names": None,
                 "error": str(e),
-                "error_type": "execution_error",
-                "message": f"Execution error: {e}"
+                "error_type": "UNKNOWN",
+                "error_detail": error_detail,  # NEW
+                "message": f"Unexpected error: {e}"
             }
+
+    def _get_error_suggestions(self, db_error, query: str) -> List[str]:
+        """Get context-specific suggestions based on database error"""
+        suggestions = []
+        error_msg = str(db_error).lower()
+        
+        # Table not found
+        if "does not exist" in error_msg and "relation" in error_msg:
+            # Extract table name and suggest alternatives
+            from database.northwind_context import BUSINESS_CONTEXT
+            available_tables = list(BUSINESS_CONTEXT.keys())
+            
+            # Try to extract wrong table name from error
+            match = re.search(r'relation ["\']?(\w+)["\']?', error_msg)
+            if match:
+                wrong_table = match.group(1)
+                suggestions = error_manager.suggest_alternatives(
+                    error_manager.classify_error(f"Table {wrong_table} not found"),
+                    available_tables
+                )
+        
+        # Column not found
+        elif "column" in error_msg and "does not exist" in error_msg:
+            # Would need table context to suggest columns
+            suggestions.append("Check available columns in the table")
+        
+        return suggestions
+
     
     def format_results_for_display(self, results: Dict[str, Any]) -> str:
         """

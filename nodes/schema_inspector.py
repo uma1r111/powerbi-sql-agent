@@ -3,6 +3,8 @@
 import logging
 from typing import Dict, Any, List
 from datetime import datetime
+from difflib import SequenceMatcher
+import re
 
 # Import our state management
 from state.agent_state import AgentState, StateManager
@@ -12,6 +14,9 @@ from state.plan_state import ExecutionPlan, StepStatus
 from tools.schema_tools import schema_inspector
 from database.northwind_context import BUSINESS_CONTEXT
 from database.relationships import get_related_tables, get_join_path
+
+# NEW: Import error manager
+from tools.error_manager import error_manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -51,7 +56,7 @@ class SchemaInspectorNode:
             state.is_follow_up_query = StateManager.detect_follow_up_query(state)
             logger.info(f"Follow-up query detected: {state.is_follow_up_query}")
 
-            # NEW: Log conversation context if follow-up
+            # Log conversation context if follow-up
             if state.is_follow_up_query:
                 context = state.get_context_for_follow_up()
                 logger.info(f"📚 Using conversation context:")
@@ -61,6 +66,16 @@ class SchemaInspectorNode:
             
             # Step 2: Suggest relevant tables based on query
             table_suggestions = self._suggest_tables_for_query(state)
+            
+            # NEW: Check if table suggestion failed
+            if not table_suggestions.get("success") or not state.selected_tables:
+                logger.error("❌ Table suggestion failed or returned empty")
+                
+                # Error was already added to state in _suggest_tables_for_query
+                if current_plan and current_step:
+                    current_step.fail_execution("No tables identified for query")
+                
+                return state
             
             # Step 3: Get comprehensive schema context
             schema_context = self._get_comprehensive_schema_context(state, table_suggestions)
@@ -100,7 +115,7 @@ class SchemaInspectorNode:
     
     def _suggest_tables_for_query(self, state: AgentState) -> Dict[str, Any]:
         """
-        Suggest relevant tables based on the user query using context awareness
+        Enhanced table suggestion with fuzzy matching and error handling
         """
         logger.info("🎯 Suggesting tables for query")
         
@@ -109,10 +124,8 @@ class SchemaInspectorNode:
             if state.is_follow_up_query and state.last_tables_used:
                 logger.info(f"📌 Follow-up detected! Reusing tables from context: {state.last_tables_used}")
                 
-                # Use tables from previous query
                 state.selected_tables = state.last_tables_used.copy()
                 
-                # Add context information
                 return {
                     "success": True,
                     "suggested_tables": {
@@ -124,20 +137,155 @@ class SchemaInspectorNode:
                     "method": "context_reuse"
                 }
             
-            # Not a follow-up - use regular table suggestion
-            suggestions = schema_inspector.suggest_tables_for_query(state.user_query)
+            # Not a follow-up - use enhanced table suggestion
+            query_lower = state.user_query.lower()
             
-            if suggestions["success"]:
-                suggested_tables = list(suggestions["suggested_tables"].keys())
-                state.selected_tables = suggested_tables
-                logger.info(f"Suggested tables: {suggested_tables}")
-                return suggestions
-            else:
-                return self._fallback_table_suggestion(state)
+            # 1. EXACT KEYWORD MATCHING
+            table_keywords = {
+                "customers": ["customer", "client", "company", "contact"],
+                "orders": ["order", "purchase", "sale", "transaction"],
+                "order_details": ["product", "item", "quantity", "price", "revenue", "detail"],
+                "products": ["product", "item", "inventory", "stock", "catalog"],
+                "categories": ["category", "type", "group", "classification"],
+                "suppliers": ["supplier", "vendor", "provider"],
+                "employees": ["employee", "staff", "sales rep", "worker"],
+                "shippers": ["shipping", "delivery", "freight", "shipper"]
+            }
+            
+            table_scores = {}
+            for table_name, keywords in table_keywords.items():
+                score = sum(1 for keyword in keywords if keyword in query_lower)
+                if score > 0:
+                    table_scores[table_name] = score
+            
+            # 2. FUZZY MATCHING if no exact matches
+            if not table_scores:
+                logger.info("🔄 No exact keyword matches, trying fuzzy matching...")
+                valid_tables = list(BUSINESS_CONTEXT.keys())
+                table_scores = self._fuzzy_match_tables(query_lower, valid_tables)
+            
+            # 3. EXPLICIT TABLE NAME MENTION
+            valid_tables = list(BUSINESS_CONTEXT.keys())
+            for table in valid_tables:
+                if table.lower() in query_lower:
+                    table_scores[table] = table_scores.get(table, 0) + 2.0
+            
+            # 4. STILL NO MATCHES? Handle error
+            if not table_scores:
+                logger.warning("⚠️ No tables matched user query")
                 
+                # Classify as schema error
+                error_detail = error_manager.classify_error(
+                    error_message=f"Could not identify relevant tables for query: '{state.user_query}'",
+                    error_context={
+                        "query": state.user_query,
+                        "stage": "schema_inspection",
+                        "available_tables": valid_tables
+                    }
+                )
+                
+                # Get suggestions using error manager
+                suggestions = error_manager.suggest_alternatives(
+                    error_detail,
+                    valid_tables
+                )
+                
+                # Format user-friendly message
+                user_message = self._format_no_tables_error(
+                    state.user_query,
+                    suggestions if suggestions else valid_tables
+                )
+                
+                state.add_error(user_message)
+                
+                return {
+                    "success": False,
+                    "error": "no_tables_identified",
+                    "error_detail": error_detail,
+                    "suggestions": suggestions,
+                    "method": "error"
+                }
+            
+            # Sort by relevance
+            suggested_tables = sorted(table_scores.items(), key=lambda x: x[1], reverse=True)
+            
+            # Get top suggestions
+            top_suggestions = [table for table, score in suggested_tables[:3]]
+            state.selected_tables = top_suggestions
+            
+            # Build context
+            table_contexts = {}
+            for table in top_suggestions:
+                if table in BUSINESS_CONTEXT:
+                    table_contexts[table] = {
+                        "description": BUSINESS_CONTEXT[table]["description"],
+                        "key_fields": BUSINESS_CONTEXT[table]["key_fields"],
+                        "relevance_score": dict(suggested_tables)[table]
+                    }
+            
+            logger.info(f"✅ Suggested tables: {top_suggestions} (scores: {[f'{t}={s:.2f}' for t, s in suggested_tables[:3]]})")
+            
+            return {
+                "success": True,
+                "suggested_tables": table_contexts,
+                "all_scores": dict(suggested_tables),
+                "method": "keyword_and_fuzzy"
+            }
+            
         except Exception as e:
             logger.error(f"Table suggestion failed: {e}")
             return self._fallback_table_suggestion(state)
+    
+    def _fuzzy_match_tables(self, query_lower: str, valid_tables: List[str], threshold: float = 0.6) -> Dict[str, float]:
+        """
+        Fuzzy match table names from query using similarity scoring
+        """
+        matches = {}
+        query_words = re.findall(r'\b\w+\b', query_lower)
+        
+        for table in valid_tables:
+            table_lower = table.lower()
+            
+            for word in query_words:
+                if len(word) >= 4:  # Only check words of reasonable length
+                    # Calculate similarity ratio
+                    similarity = SequenceMatcher(None, word, table_lower).ratio()
+                    
+                    if similarity >= threshold:
+                        if table not in matches or similarity > matches[table]:
+                            matches[table] = similarity
+                    
+                    # Also check substring matching
+                    if word in table_lower or table_lower in word:
+                        containment_score = min(len(word), len(table_lower)) / max(len(word), len(table_lower))
+                        if containment_score >= threshold:
+                            if table not in matches or containment_score > matches[table]:
+                                matches[table] = containment_score
+        
+        logger.info(f"🔍 Fuzzy matching found: {list(matches.keys())}")
+        return matches
+    
+    def _format_no_tables_error(self, query: str, suggestions: List[str]) -> str:
+        """
+        Format a helpful error message when no tables are found
+        """
+        message = f"🤔 I couldn't identify which database tables to use for your query: \"{query}\"\n\n"
+        
+        if suggestions and len(suggestions) <= 5:
+            message += "**Did you mean one of these tables?**\n"
+            for suggestion in suggestions:
+                message += f"  • {suggestion}\n"
+        else:
+            message += "**Available tables:**\n"
+            for table in sorted(suggestions[:10]):  # Show max 10
+                message += f"  • {table}\n"
+        
+        message += "\n💡 **Try asking:**\n"
+        message += "  • Show me data from customers\n"
+        message += "  • List all orders\n"
+        message += "  • Show me products\n"
+        
+        return message
     
     def _fallback_table_suggestion(self, state: AgentState) -> Dict[str, Any]:
         """
@@ -145,12 +293,11 @@ class SchemaInspectorNode:
         """
         logger.info("🔄 Using fallback table suggestion")
         
-        # Default to core business tables if no specific match
+        # Default to core business tables
         core_tables = ["customers", "orders", "order_details", "products"]
         
-        # Check if we have conversation history to inform table selection
+        # Check conversation history
         if state.is_follow_up_query and len(state.messages) > 2:
-            # Look for previously mentioned tables in conversation
             previous_messages = [msg.content for msg in state.messages[:-1]]
             mentioned_tables = []
             
@@ -162,9 +309,9 @@ class SchemaInspectorNode:
                 state.selected_tables = mentioned_tables
                 logger.info(f"Follow-up query - using previously mentioned tables: {mentioned_tables}")
             else:
-                state.selected_tables = core_tables[:2]  # customers, orders
+                state.selected_tables = core_tables[:2]
         else:
-            # New query - suggest based on keywords
+            # New query - suggest based on simple keywords
             query_lower = state.user_query.lower()
             suggested = []
             
@@ -242,7 +389,6 @@ class SchemaInspectorNode:
                     if "No known relationship" not in join_path:
                         relationships[f"{table1}_to_{table2}"] = join_path
                         
-                        # Add suggested JOIN pattern
                         join_patterns.append({
                             "tables": [table1, table2],
                             "relationship": join_path,
@@ -326,12 +472,9 @@ class SchemaInspectorNode:
         """
         Get relevant few-shot examples based on selected tables and intent
         """
-        # This will be used by the planner node for few-shot learning
-        # For now, return basic structure that planner can use
-        
         examples = []
         
-        # Add table-specific examples based on selected tables
+        # Add table-specific examples
         for table in state.selected_tables:
             if table == "customers":
                 examples.append({
@@ -342,7 +485,7 @@ class SchemaInspectorNode:
                 })
             elif table == "orders":
                 examples.append({
-                    "type": "table_specific", 
+                    "type": "table_specific",
                     "table": table,
                     "natural_language": f"How many orders were placed in 1996?",
                     "complexity": "intermediate"
@@ -357,7 +500,7 @@ class SchemaInspectorNode:
                 "complexity": "advanced"
             })
         
-        return examples[:3]  # Limit to top 3 examples
+        return examples[:3]
     
     def get_node_info(self) -> Dict[str, Any]:
         """Get information about this node"""
@@ -365,7 +508,8 @@ class SchemaInspectorNode:
             "node_name": self.node_name,
             "description": self.description,
             "capabilities": [
-                "Table suggestion based on query analysis",
+                "Table suggestion with fuzzy matching",
+                "Error handling for no table matches",
                 "Comprehensive schema context gathering",
                 "Business intent detection",
                 "Relationship analysis",
@@ -373,15 +517,14 @@ class SchemaInspectorNode:
             ],
             "outputs": [
                 "selected_tables",
-                "schema_context", 
+                "schema_context",
                 "table_relationships",
                 "business_intent",
                 "query_complexity"
             ]
         }
 
-# Create node instance for easy import
+# Create node instance
 schema_inspector_node = SchemaInspectorNode()
 
-# Export the node
 __all__ = ["SchemaInspectorNode", "schema_inspector_node"]

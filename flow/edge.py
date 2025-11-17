@@ -5,34 +5,37 @@ from typing import Literal, Dict, Any
 from state.agent_state import AgentState
 from flow.graph import GraphState, graph_state_to_agent_state
 
+from tools.error_manager import error_manager
+from config.error_config import ErrorCategory, ErrorSeverity
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def should_continue_to_planner(state: GraphState) -> Literal["continue", "error"]:
     """
-    Determine if processing should continue to the next node or stop due to errors
-    
-    Used after schema_inspector and planner nodes
-    
-    Args:
-        state: Current GraphState
-        
-    Returns:
-        "continue" if processing should continue, "error" if it should stop
+    Enhanced with error detail checking
     """
     agent_state = graph_state_to_agent_state(state)
     logger.info("Evaluating continuation condition")
     
-    # Check for critical errors that should stop processing
+    # Check for critical errors
     if len(agent_state.errors) > 0:
         logger.warning(f"Found {len(agent_state.errors)} errors, stopping processing")
+        # NEW: Mark as processing complete so output formatter runs
+        agent_state.processing_complete = True
         return "error"
     
     # Check if we have required information
     if not agent_state.selected_tables:
         logger.warning("No tables selected, cannot continue")
-        agent_state.add_error("No relevant tables identified for the query")
+        # NEW: Add structured error
+        error_detail = error_manager.classify_error(
+            "No relevant tables identified for the query",
+            {"query": agent_state.user_query, "stage": "edge_evaluation"}
+        )
+        agent_state.add_error(error_detail.get_user_message())
+        agent_state.processing_complete = True  # Important!
         return "error"
     
     # Check if we're in a retry loop
@@ -46,17 +49,7 @@ def should_continue_to_planner(state: GraphState) -> Literal["continue", "error"
 
 def should_execute_query(state: GraphState) -> Literal["execute", "retry", "error"]:
     """
-    Determine if the validated query should be executed, retried, or stopped
-    
-    Used after query_validator node
-    
-    Args:
-        state: Current GraphState
-        
-    Returns:
-        "execute" if query should be executed
-        "retry" if query needs regeneration  
-        "error" if processing should stop
+    Enhanced decision logic using error manager classifications
     """
     agent_state = graph_state_to_agent_state(state)
     logger.info("Evaluating query execution condition")
@@ -68,15 +61,41 @@ def should_execute_query(state: GraphState) -> Literal["execute", "retry", "erro
     
     # Check if we can retry
     if agent_state.correction_attempts < agent_state.max_correction_attempts:
-        logger.info(f"Validation failed, retrying (attempt {agent_state.correction_attempts + 1}/{agent_state.max_correction_attempts})")
+        logger.info(f"Validation failed, checking if retryable (attempt {agent_state.correction_attempts + 1}/{agent_state.max_correction_attempts})")
         
-        # Determine if the error is retryable
+        # NEW: Use error manager to determine retryability
         validation_results = agent_state.validation_results
         
+        if validation_results and "error_details" in validation_results:
+            error_details = validation_results["error_details"]
+            
+            # Check if any errors are non-retryable
+            for error_detail in error_details:
+                # Critical security errors - never retry
+                if error_detail.error_type.severity == ErrorSeverity.CRITICAL:
+                    logger.error(f"Critical error detected: {error_detail.error_type.code}")
+                    agent_state.add_error(f"Critical error: {error_detail.get_user_message()}")
+                    return "error"
+                
+                # Check specific non-retryable categories
+                if error_detail.error_type.category == ErrorCategory.SECURITY:
+                    logger.error(f"Security violation: {error_detail.error_type.code}")
+                    return "error"
+                
+                if not error_detail.error_type.retryable:
+                    logger.error(f"Non-retryable error: {error_detail.error_type.code}")
+                    return "error"
+            
+            # All errors are retryable
+            agent_state.needs_correction = True
+            logger.info("Errors are retryable, returning to planner")
+            return "retry"
+        
+        # Fallback to old logic if no error details
         if validation_results and "syntax_validation" in validation_results:
             syntax_errors = validation_results["syntax_validation"].get("errors", [])
             
-            # Check for non-retryable errors
+            # Check for non-retryable errors (legacy)
             non_retryable_patterns = [
                 "dangerous operation",
                 "sql injection",
@@ -101,17 +120,7 @@ def should_execute_query(state: GraphState) -> Literal["execute", "retry", "erro
 
 def should_retry_query(state: GraphState) -> Literal["success", "retry", "error"]:
     """
-    Determine the next step after query execution
-    
-    Used after sql_executor node
-    
-    Args:
-        state: Current GraphState
-        
-    Returns:
-        "success" if execution succeeded and should proceed to output
-        "retry" if execution failed but should retry
-        "error" if execution failed and should stop
+    Enhanced post-execution decision using error classifications
     """
     agent_state = graph_state_to_agent_state(state)
     logger.info("Evaluating post-execution condition")
@@ -123,18 +132,35 @@ def should_retry_query(state: GraphState) -> Literal["success", "retry", "error"
     
     # Execution failed - check if we can retry
     if agent_state.correction_attempts < agent_state.max_correction_attempts:
-        # Analyze the type of error to determine if retry is worthwhile
+        # NEW: Use error detail from execution results
         execution_results = agent_state.execution_results
         
+        if execution_results and "error_detail" in execution_results:
+            error_detail = execution_results["error_detail"]
+            
+            # Check error properties
+            if error_detail.error_type.severity == ErrorSeverity.CRITICAL:
+                logger.error(f"Critical execution error: {error_detail.error_type.code}")
+                return "error"
+            
+            if error_detail.error_type.category == ErrorCategory.INFRASTRUCTURE:
+                logger.error(f"Infrastructure error: {error_detail.error_type.code}")
+                return "error"
+            
+            if not error_detail.error_type.retryable:
+                logger.error(f"Non-retryable execution error: {error_detail.error_type.code}")
+                return "error"
+            
+            # Error is retryable
+            logger.info(f"Retryable error ({error_detail.error_type.code}), returning to planner")
+            agent_state.needs_correction = True
+            return "retry"
+        
+        # Fallback: analyze error message (legacy)
         if execution_results and "error" in execution_results:
             error_message = execution_results["error"].lower()
             
-            # Categorize errors
-            syntax_errors = [
-                "syntax error", "invalid sql", "parse error", "column does not exist",
-                "table does not exist", "relation does not exist"
-            ]
-            
+            # Categorize errors (legacy logic)
             permission_errors = [
                 "permission denied", "access denied", "unauthorized", "forbidden"
             ]
@@ -143,25 +169,30 @@ def should_retry_query(state: GraphState) -> Literal["success", "retry", "error"
                 "connection", "timeout", "network", "server"
             ]
             
+            syntax_errors = [
+                "syntax error", "invalid sql", "parse error", "column does not exist",
+                "table does not exist", "relation does not exist"
+            ]
+            
             # Check error category
             if any(pattern in error_message for pattern in permission_errors):
-                logger.error(f"Permission error, not retrying: {error_message}")
+                logger.error(f"Permission error: {error_message}")
                 agent_state.add_error("Database access permission error")
                 return "error"
             
             elif any(pattern in error_message for pattern in connection_errors):
-                logger.error(f"Connection error, not retrying: {error_message}")
+                logger.error(f"Connection error: {error_message}")
                 agent_state.add_error("Database connection error")
                 return "error"
             
             elif any(pattern in error_message for pattern in syntax_errors):
-                logger.info(f"Syntax error detected, will retry: {error_message}")
+                logger.info(f"Syntax error, will retry: {error_message}")
                 agent_state.needs_correction = True
                 return "retry"
             
             else:
                 # Unknown error type - try once more
-                logger.warning(f"Unknown error type, will retry once: {error_message}")
+                logger.warning(f"Unknown error type, will retry: {error_message}")
                 agent_state.needs_correction = True
                 return "retry"
     
