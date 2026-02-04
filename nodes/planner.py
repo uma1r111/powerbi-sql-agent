@@ -44,7 +44,7 @@ class PlannerNode:
         self.description = "Generates execution plans and SQL queries using schema context and few-shot learning"
         
         # Initialize LLM (you'll need to set your Gemini API key)
-        self.llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0)
+        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
         
         # Initialize few-shot example selector
         self._initialize_example_selector()

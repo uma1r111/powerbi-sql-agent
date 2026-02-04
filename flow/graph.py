@@ -282,7 +282,7 @@ class OutputFormatterNode:
         from langchain_google_genai import ChatGoogleGenerativeAI
         import os
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             temperature=0.7  # Slightly higher for more natural responses
         )
     
