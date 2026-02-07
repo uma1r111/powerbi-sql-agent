@@ -1,49 +1,49 @@
+# nodes/planner.py
+
 import logging
 import re
+import os
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from dotenv import load_dotenv
 
-# LangChain imports for few-shot learning (from YouTube approach)
+# LangChain imports
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, FewShotChatMessagePromptTemplate
 from langchain_core.example_selectors import SemanticSimilarityExampleSelector
 from langchain_chroma import Chroma
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain_core.runnables import RunnablePassthrough
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.output_parsers import StrOutputParser
-from langchain_community.embeddings import HuggingFaceEmbeddings
+# We use FastEmbed for local embeddings to avoid API costs/limits on embeddings
 from langchain_community.embeddings import FastEmbedEmbeddings
 
 # Import our state management
 from state.agent_state import AgentState
-from state.plan_state import ExecutionPlan, PlanManager, StepStatus
+from state.plan_state import ExecutionPlan, PlanManager
 
 # Import our database knowledge
 from database.sample_queries import SAMPLE_QUERIES, get_queries_with_tables
 from database.relationships import COMMON_JOIN_PATTERNS
-
 from tools.error_manager import error_manager
-
-# Google Gemini API imports
-import os
-from dotenv import load_dotenv
-load_dotenv()
-os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load environment variables
+load_dotenv()
+
 class PlannerNode:
     """
     Node responsible for generating execution plans and SQL queries
-    Uses schema context from inspector + few-shot learning approach from YouTube
+    Uses schema context from inspector + few-shot learning approach
     """
     
     def __init__(self):
         self.node_name = "planner"
         self.description = "Generates execution plans and SQL queries using schema context and few-shot learning"
         
-        # Initialize LLM (you'll need to set your Gemini API key)
+        # Initialize LLM
+        # Note: Using temperature=0 for consistent SQL generation
         self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
         
         # Initialize few-shot example selector
@@ -69,11 +69,12 @@ class PlannerNode:
                     })
             
             # Create vector store for semantic similarity
-            vectorstore = Chroma()
-            try:
-                vectorstore.delete_collection()
-            except:
-                pass  # Collection might not exist
+            # We use a persistent directory to avoid re-indexing on every restart if needed,
+            # but for now in-memory/ephemeral is fine for the agent lifecycle.
+            vectorstore = Chroma(
+                collection_name="sql_examples",
+                embedding_function=FastEmbedEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+            )
             
             # Create example selector
             self.example_selector = SemanticSimilarityExampleSelector.from_examples(
@@ -93,21 +94,23 @@ class PlannerNode:
     def _initialize_prompts(self):
         """Initialize the prompt templates for SQL generation"""
         
-        # Example prompt template (from YouTube approach)
+        # Example prompt template
         self.example_prompt = ChatPromptTemplate.from_messages([
             ("human", "{input}\nSQLQuery:"),
             ("ai", "{query}"),
         ])
         
-        # Few-shot prompt will be created dynamically based on selected examples
-        
         # Main system prompt that combines everything
+        # UPDATED: Added PREVIOUS CONTEXT section to handle follow-up ambiguity
         self.main_prompt_template = """You are a PostgreSQL expert for a Northwind food & beverage trading company database. 
 
 Given an input question, create a syntactically correct PostgreSQL query. 
 
 CURRENT EXECUTION PLAN:
 {current_plan}
+
+PREVIOUS CONTEXT (Conversational Memory):
+{previous_context}
 
 DATABASE CONTEXT:
 {table_info}
@@ -122,25 +125,19 @@ Below are similar examples for reference:
 {few_shot_examples}
 
 IMPORTANT RULES:
-1. Only use tables that exist in the schema
-2. Use proper PostgreSQL syntax
-3. Include appropriate JOINs when querying multiple tables
-4. Consider business logic (e.g., revenue = quantity * unit_price * (1 - discount))
-5. Add LIMIT clauses for large result sets
-6. Use meaningful aliases for tables
-7. Follow the execution plan steps
+1. Only use tables that exist in the schema.
+2. Use proper PostgreSQL syntax.
+3. If PREVIOUS CONTEXT mentions specific entities (like specific products), filter for those IDs/Names in your WHERE clause if the user says "them", "these", or "those".
+4. Include appropriate JOINs when querying multiple tables.
+5. Consider business logic (e.g., revenue = quantity * unit_price * (1 - discount)).
+6. Add LIMIT clauses for large result sets.
+7. Use meaningful aliases for tables.
 
 Generate ONLY the SQL query, no explanations."""
     
     def execute(self, state: AgentState) -> AgentState:
         """
         Main execution method for the planner node
-        
-        Args:
-            state: Current agent state with schema context
-            
-        Returns:
-            Updated agent state with generated plan and SQL query
         """
         logger.info(f"🧠 Planner Node: Generating plan and SQL for '{state.user_query}'")
         
@@ -214,7 +211,8 @@ Generate ONLY the SQL query, no explanations."""
             other_examples = []
             
             for example in selected:
-                if any(table in example.get("tables", []) for table in state.selected_tables):
+                # Basic check if example uses any of our selected tables
+                if any(table in example.get("tables", "") for table in state.selected_tables):
                     table_relevant_examples.append(example)
                 else:
                     other_examples.append(example)
@@ -248,7 +246,7 @@ Generate ONLY the SQL query, no explanations."""
                 "input": query_info["natural_language"],
                 "query": query_info["sql"], 
                 "complexity": query_info["complexity"],
-                "tables": query_info["tables_involved"]
+                "tables": ", ".join(query_info["tables_involved"])
             })
         
         return examples
@@ -286,7 +284,7 @@ Generate ONLY the SQL query, no explanations."""
             # Prepare context for the prompt
             context = self._prepare_prompt_context(state)
             
-            # NEW: Add error recovery guidance if this is a retry
+            # Add error recovery guidance if this is a retry
             error_guidance = ""
             if state.needs_correction and state.correction_attempts > 0:
                 error_guidance = self._get_error_recovery_guidance(state)
@@ -319,10 +317,11 @@ Generate ONLY the SQL query, no explanations."""
             result = chain.invoke({
                 "input": state.user_query,
                 "current_plan": context["current_plan"],
+                "previous_context": context["previous_context"], # Pass the new context
                 "table_info": context["table_info"],
                 "business_context": context["business_context"],
                 "relationships_info": context["relationships_info"],
-                "few_shot_examples": "",
+                "few_shot_examples": "", # Handled by FewShotChatMessagePromptTemplate
                 "messages": state.get_conversation_context()
             })
             
@@ -335,8 +334,6 @@ Generate ONLY the SQL query, no explanations."""
     def _get_error_recovery_guidance(self, state: AgentState) -> str:
         """
         Get error recovery guidance for the LLM based on previous errors
-        
-        NEW METHOD
         """
         if not state.errors:
             return ""
@@ -374,7 +371,6 @@ Generate ONLY the SQL query, no explanations."""
     """)
         
         return "\n".join(guidance_parts)
-
     
     def _prepare_prompt_context(self, state: AgentState) -> Dict[str, str]:
         """Prepare context for SQL generation prompt"""
@@ -383,6 +379,24 @@ Generate ONLY the SQL query, no explanations."""
         current_plan = getattr(state, '_current_plan', None)
         plan_context = current_plan.to_system_prompt_format() if current_plan else "No execution plan available"
         
+        # NEW: Previous Context for Follow-ups
+        previous_context = "No relevant previous context."
+        if state.is_follow_up_query:
+            # Format the active entities specifically to help with "them"/"these" resolution
+            entities_str = ""
+            if state.active_entities:
+                entities_str = "\n".join([f"- {k}: {v.get('count', 0)} items found" for k, v in state.active_entities.items()])
+            
+            previous_context = f"""
+            This is a follow-up question.
+            Last Topic: {state.last_query_topic}
+            Last User Intent: {state.last_user_intent}
+            Last Results Summary: {state.last_result_summary}
+            
+            ACTIVE ENTITIES (The user likely refers to these when saying 'them' or 'these'):
+            {entities_str}
+            """
+            
         # Table information
         table_info = self._format_table_info(state)
         
@@ -399,6 +413,7 @@ Analysis Type: {state.schema_context.get('business_scenario', {}).get('business_
         
         return {
             "current_plan": plan_context,
+            "previous_context": previous_context,
             "table_info": table_info,
             "business_context": business_context,
             "relationships_info": relationships_info
@@ -415,7 +430,8 @@ Analysis Type: {state.schema_context.get('business_scenario', {}).get('business_
 Table: {table}
 Description: {table_context.get('description', 'No description')}
 Key Fields: {', '.join(table_context.get('key_fields', []))}
-Row Count: {table_context.get('row_count', 'Unknown')}
+Columns: {', '.join(table_context.get('columns', []))}
+Sample Values: {table_context.get('sample_values', '')}
 """)
         
         return "\n".join(info_parts)
@@ -433,7 +449,7 @@ Row Count: {table_context.get('row_count', 'Unknown')}
     
     def _clean_sql_query(self, query: str) -> str:
         """
-        Clean SQL query using the regex approach from YouTube code
+        Clean SQL query using regex
         """
         if not query:
             return ""
@@ -501,24 +517,12 @@ Row Count: {table_context.get('row_count', 'Unknown')}
                 "Conversation history integration",
                 "Query complexity assessment"
             ],
-            "inputs": [
-                "user_query",
-                "schema_context",
-                "selected_tables", 
-                "business_intent",
-                "conversation_history"
-            ],
             "outputs": [
                 "generated_sql",
                 "cleaned_sql",
                 "execution_plan",
                 "few_shot_examples",
                 "current_plan"
-            ],
-            "dependencies": [
-                "OpenAI API for LLM",
-                "ChromaDB for vector storage",
-                "Schema context from inspector node"
             ]
         }
 

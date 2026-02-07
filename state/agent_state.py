@@ -3,11 +3,13 @@
 from typing import Dict, List, Any, Optional, Union
 from pydantic import BaseModel, Field
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from langchain.memory import ChatMessageHistory
 from datetime import datetime
 import uuid
 import re
-from asyncssh import logger
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class AgentState(BaseModel):
     """
@@ -23,7 +25,7 @@ class AgentState(BaseModel):
     user_query: str = Field(default="", description="Current user question/request")
     original_query: str = Field(default="", description="Original user query before any processing")
     
-    # === MEMORY (From YouTube - Proven Pattern) ===
+    # === MEMORY ===
     messages: List[BaseMessage] = Field(default_factory=list, description="Chat history for context")
     conversation_summary: Optional[str] = Field(default=None, description="Summary of long conversations")
     
@@ -37,7 +39,7 @@ class AgentState(BaseModel):
     schema_context: Dict[str, Any] = Field(default_factory=dict, description="Schema information for selected tables")
     table_relationships: Dict[str, Any] = Field(default_factory=dict, description="Relationships between selected tables")
     
-    # === DYNAMIC FEW-SHOT (From YouTube - Smart Pattern) ===
+    # === DYNAMIC FEW-SHOT ===
     few_shot_examples: List[Dict[str, str]] = Field(default_factory=list, description="Dynamically selected examples")
     example_relevance_scores: Dict[str, float] = Field(default_factory=dict, description="Relevance scores for examples")
     
@@ -76,12 +78,12 @@ class AgentState(BaseModel):
     is_follow_up_query: bool = Field(default=False, description="Whether this is a follow-up question")
     processing_complete: bool = Field(default=False, description="Whether processing is complete")
 
-    # === RESPONSE FORMATTING (NEW) ===
+    # === RESPONSE FORMATTING ===
     response_format: str = Field(default="conversational", description="Response format: conversational or detailed")
     show_sql: bool = Field(default=False, description="Whether to show SQL in response")
     show_execution_details: bool = Field(default=False, description="Show execution time and metadata")
 
-        # === CONVERSATION CONTEXT (NEW) ===
+    # === CONVERSATION CONTEXT (NEW) ===
     conversation_context: Dict[str, Any] = Field(
         default_factory=dict, 
         description="Context from previous turns in conversation"

@@ -12,8 +12,11 @@ from state.plan_state import ExecutionPlan, StepStatus
 
 # Import our tools
 from tools.schema_tools import schema_inspector
-from database.northwind_context import BUSINESS_CONTEXT
+# REMOVED: from database.northwind_context import BUSINESS_CONTEXT
 from database.relationships import get_related_tables, get_join_path
+
+# NEW: Import schema discovery
+from database.schema_discovery import SchemaDiscovery
 
 # NEW: Import error manager
 from tools.error_manager import error_manager
@@ -31,6 +34,15 @@ class SchemaInspectorNode:
     def __init__(self):
         self.node_name = "schema_inspector"
         self.description = "Inspects database schema and provides business context for query planning"
+        
+        # Initialize dynamic discovery
+        try:
+            self.discovery = SchemaDiscovery()
+            self.dynamic_context = self.discovery.get_schema_context()
+            logger.info(f"✅ Loaded schema context for {len(self.dynamic_context)} tables")
+        except Exception as e:
+            logger.error(f"❌ Failed to load schema context: {e}")
+            self.dynamic_context = {}
     
     def execute(self, state: AgentState) -> AgentState:
         """
@@ -140,37 +152,22 @@ class SchemaInspectorNode:
             # Not a follow-up - use enhanced table suggestion
             query_lower = state.user_query.lower()
             
-            # 1. EXACT KEYWORD MATCHING
-            table_keywords = {
-                "customers": ["customer", "client", "company", "contact"],
-                "orders": ["order", "purchase", "sale", "transaction"],
-                "order_details": ["product", "item", "quantity", "price", "revenue", "detail"],
-                "products": ["product", "item", "inventory", "stock", "catalog"],
-                "categories": ["category", "type", "group", "classification"],
-                "suppliers": ["supplier", "vendor", "provider"],
-                "employees": ["employee", "staff", "sales rep", "worker"],
-                "shippers": ["shipping", "delivery", "freight", "shipper"]
-            }
+            # Get list of valid tables from dynamic context
+            valid_tables = list(self.dynamic_context.keys())
             
+            # 1. EXACT KEYWORD MATCHING
+            # We replace the hardcoded table_keywords map with a dynamic check
             table_scores = {}
-            for table_name, keywords in table_keywords.items():
-                score = sum(1 for keyword in keywords if keyword in query_lower)
-                if score > 0:
-                    table_scores[table_name] = score
+            for table in valid_tables:
+                if table.lower() in query_lower:
+                    table_scores[table] = 5.0  # High score for direct mention
             
             # 2. FUZZY MATCHING if no exact matches
             if not table_scores:
                 logger.info("🔄 No exact keyword matches, trying fuzzy matching...")
-                valid_tables = list(BUSINESS_CONTEXT.keys())
                 table_scores = self._fuzzy_match_tables(query_lower, valid_tables)
             
-            # 3. EXPLICIT TABLE NAME MENTION
-            valid_tables = list(BUSINESS_CONTEXT.keys())
-            for table in valid_tables:
-                if table.lower() in query_lower:
-                    table_scores[table] = table_scores.get(table, 0) + 2.0
-            
-            # 4. STILL NO MATCHES? Handle error
+            # 3. STILL NO MATCHES? Handle error
             if not table_scores:
                 logger.warning("⚠️ No tables matched user query")
                 
@@ -213,14 +210,15 @@ class SchemaInspectorNode:
             top_suggestions = [table for table, score in suggested_tables[:3]]
             state.selected_tables = top_suggestions
             
-            # Build context
+            # Build context using DYNAMIC data
             table_contexts = {}
             for table in top_suggestions:
-                if table in BUSINESS_CONTEXT:
+                if table in self.dynamic_context:
+                    ctx = self.dynamic_context[table]
                     table_contexts[table] = {
-                        "description": BUSINESS_CONTEXT[table]["description"],
-                        "key_fields": BUSINESS_CONTEXT[table]["key_fields"],
-                        "relevance_score": dict(suggested_tables)[table]
+                        "description": ctx["description"],
+                        "key_fields": ctx["key_fields"],
+                        "relevance_score": dict(suggested_tables).get(table, 0)
                     }
             
             logger.info(f"✅ Suggested tables: {top_suggestions} (scores: {[f'{t}={s:.2f}' for t, s in suggested_tables[:3]]})")
@@ -229,7 +227,7 @@ class SchemaInspectorNode:
                 "success": True,
                 "suggested_tables": table_contexts,
                 "all_scores": dict(suggested_tables),
-                "method": "keyword_and_fuzzy"
+                "method": "dynamic_discovery"
             }
             
         except Exception as e:
@@ -293,15 +291,29 @@ class SchemaInspectorNode:
         """
         logger.info("🔄 Using fallback table suggestion")
         
-        # Default to core business tables
-        core_tables = ["customers", "orders", "order_details", "products"]
+        # Get core tables from valid tables (take first few if specific ones not found)
+        valid_tables = list(self.dynamic_context.keys())
+        
+        # Try to find standard business tables if they exist in schema
+        core_tables = []
+        preferred_tables = ["customers", "orders", "order_details", "products"]
+        
+        for pref in preferred_tables:
+            for valid in valid_tables:
+                if pref in valid.lower():
+                    core_tables.append(valid)
+                    break
+        
+        # If no preferred tables found, just take the first few available tables
+        if not core_tables:
+            core_tables = valid_tables[:2]
         
         # Check conversation history
         if state.is_follow_up_query and len(state.messages) > 2:
             previous_messages = [msg.content for msg in state.messages[:-1]]
             mentioned_tables = []
             
-            for table_name in BUSINESS_CONTEXT.keys():
+            for table_name in valid_tables:
                 if any(table_name in msg.lower() for msg in previous_messages):
                     mentioned_tables.append(table_name)
             
@@ -311,18 +323,13 @@ class SchemaInspectorNode:
             else:
                 state.selected_tables = core_tables[:2]
         else:
-            # New query - suggest based on simple keywords
+            # New query - suggest based on simple keywords or default
             query_lower = state.user_query.lower()
             suggested = []
             
-            if any(word in query_lower for word in ["customer", "client", "company"]):
-                suggested.append("customers")
-            if any(word in query_lower for word in ["order", "purchase", "sale"]):
-                suggested.extend(["orders", "order_details"])
-            if any(word in query_lower for word in ["product", "item", "inventory"]):
-                suggested.append("products")
-            if any(word in query_lower for word in ["category", "type"]):
-                suggested.append("categories")
+            for table in valid_tables:
+                if table.lower() in query_lower:
+                    suggested.append(table)
             
             state.selected_tables = suggested if suggested else core_tables[:2]
         
@@ -353,6 +360,9 @@ class SchemaInspectorNode:
             
             # Get context for each selected table
             if state.selected_tables:
+                # Use dynamic schema inspector methods if available or fall back
+                # Note: schema_inspector.get_multiple_tables_context likely needs update if it relies on hardcoded context
+                # For now we use the existing call, but ideally this tool should also be dynamic
                 multi_table_context = schema_inspector.get_multiple_tables_context(state.selected_tables)
                 if multi_table_context["success"]:
                     schema_context["table_contexts"] = multi_table_context["tables"]
@@ -476,14 +486,14 @@ class SchemaInspectorNode:
         
         # Add table-specific examples
         for table in state.selected_tables:
-            if table == "customers":
+            if "customer" in table.lower():
                 examples.append({
                     "type": "table_specific",
                     "table": table,
                     "natural_language": f"Show me customers from Germany",
                     "complexity": "beginner"
                 })
-            elif table == "orders":
+            elif "order" in table.lower():
                 examples.append({
                     "type": "table_specific",
                     "table": table,

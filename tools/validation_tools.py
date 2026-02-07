@@ -5,7 +5,7 @@ import logging
 import psycopg2
 from typing import Dict, List, Any, Optional, Tuple
 from database.connection import get_db_connection
-from database.northwind_context import BUSINESS_CONTEXT
+# REMOVED: from database.northwind_context import BUSINESS_CONTEXT
 from tools.error_manager import error_manager, ErrorDetail
 from config.error_config import ErrorCategory, ErrorSeverity
 
@@ -22,8 +22,8 @@ class QueryValidatorTool:
         self.name = "QueryValidatorTool"
         self.description = "Validates SQL queries for syntax, security, and business logic"
         
-        # Valid table names from our schema
-        self.valid_tables = set(BUSINESS_CONTEXT.keys())
+        # Initialize as empty set (populated dynamically per query)
+        self.valid_tables = set()
         
         # Dangerous keywords that should be blocked
         self.dangerous_keywords = {
@@ -49,6 +49,10 @@ class QueryValidatorTool:
         Returns:
             Dict containing validation results with detailed error information
         """
+        # UPDATE valid_tables based on context if provided
+        if schema_context and 'table_contexts' in schema_context:
+            self.valid_tables = set(schema_context['table_contexts'].keys())
+
         results = {
             "success": True,
             "errors": [],
