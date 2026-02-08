@@ -19,6 +19,7 @@ __pycache__/
 /tools/__pycache__
 /config/__pycache__
 /api/__pycache__
+/run/__pycache__
 
 # Virtual environments
 venv/
@@ -88,3 +89,6 @@ dmypy.json
 
 # Pyre
 .pyre/
+
+# ChromaDB
+chroma_db/
