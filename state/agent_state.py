@@ -3,7 +3,7 @@
 from typing import Dict, List, Any, Optional, Union
 from pydantic import BaseModel, Field
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from langchain.memory import ChatMessageHistory
+from langchain_community.chat_message_histories import ChatMessageHistory
 from datetime import datetime
 import uuid
 import re

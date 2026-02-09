@@ -21,7 +21,7 @@ const LoginPage = ({ onLogin }) => {
       localStorage.setItem('user', JSON.stringify(response.data.user));
       onLogin(response.data.user);
     } catch (err) {
-      setError('Invalid credentials. Use sameed / izma / umair @intelliquery.com with password 1234');
+      setError('Invalid credentials.');
     } finally {
       setLoading(false);
     }
