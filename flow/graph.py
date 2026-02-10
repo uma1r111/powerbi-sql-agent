@@ -3,6 +3,7 @@
 import logging
 from typing import Dict, Any, Literal, TypedDict, List, Optional
 from datetime import datetime
+import pandas as pd
 
 # LangGraph imports
 from langgraph.graph import StateGraph, START, END
@@ -331,6 +332,30 @@ class OutputFormatterNode:
             return self._format_detailed_response(state, data)
         else:
             return self._format_conversational_response(state, data)
+        
+    def _format_as_markdown(self, data: list) -> str:
+        """Convert data list to a Markdown table"""
+        if not data:
+            return ""
+        
+        try:
+            df = pd.DataFrame(data)
+            
+            # Format numbers: Add commas to integers, keep floats to 2 decimals
+            # This makes "141396.74" look like "141,396.74"
+            for col in df.select_dtypes(include=['float']).columns:
+                df[col] = df[col].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
+            
+            # If dataset is large, cap it for display (e.g., top 10 rows)
+            if len(df) > 10:
+                preview = df.head(10)
+                markdown_table = preview.to_markdown(index=False)
+                return f"{markdown_table}\n\n*(...and {len(df)-10} more rows)*"
+            
+            return df.to_markdown(index=False)
+        except Exception as e:
+            logger.error(f"Markdown formatting failed: {e}")
+            return str(data) # Fallback    
     
     def _format_conversational_response(self, state: AgentState, data: list) -> str:
         """Generate natural language conversational response"""
@@ -374,11 +399,17 @@ class OutputFormatterNode:
             conversational_text = self.llm.invoke(prompt).content
         except Exception as e:
             logger.error(f"LLM response generation failed: {e}")
-            # Fallback to template-based response
             conversational_text = self._fallback_conversational_response(state, data)
         
-        # Add optional metadata
-        response = conversational_text
+        # --- NEW CODE STARTS HERE ---
+        
+        # Generate the Markdown Table
+        table_view = self._format_as_markdown(data)
+        
+        # Combine: Conversational Text + Table
+        response = f"{conversational_text}\n\n{table_view}"
+        
+        # --- NEW CODE ENDS HERE ---
         
         if state.show_sql:
             response += f"\n\n📝 **SQL Query:**\n```sql\n{state.cleaned_sql}\n```"
