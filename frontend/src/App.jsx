@@ -80,7 +80,11 @@ const LoginPage = ({ onLogin }) => {
               {['sameed', 'izma', 'umair'].map((name) => (
                 <button
                   key={name}
-                  onClick={() => { setEmail(`${name}@intelliquery.com`); }}
+                  // This now sets both Email AND Password
+                  onClick={() => { 
+                    setEmail(`${name}@intelliquery.com`); 
+                    setPassword('1111'); 
+                  }}
                   className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg transition-colors capitalize"
                 >
                   {name}

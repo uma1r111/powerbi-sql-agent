@@ -157,6 +157,12 @@ async def root():
 async def login_json(request: LoginRequest):
     """JSON login endpoint for the React frontend"""
     user = fake_users_db.get(request.email)
+    
+    # 🔍 DEBUG PRINT - This will show up in your terminal
+    print(f"\n\n👉 DEBUG: Email='{request.email}'")
+    print(f"👉 DEBUG: Password Sent='{request.password}'")
+    print(f"👉 DEBUG: Password Expected='{user['hashed_password'] if user else 'NO USER FOUND'}'\n\n")
+
     if not user or user["hashed_password"] != request.password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
