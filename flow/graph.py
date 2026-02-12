@@ -25,6 +25,11 @@ from tools.validation_tools import query_validator, validate_complete_query
 from tools.error_manager import error_manager
 
 # Configure logging
+import logging
+from typing import Any
+from decimal import Decimal
+from datetime import datetime
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -275,40 +280,31 @@ class SQLExecutorNode:
 
 
 class OutputFormatterNode:
-    """Node for formatting and presenting results"""
+    """Enhanced node for formatting - NO RAW JSON OUTPUT"""
     
     def __init__(self):
         self.node_name = "output_formatter"
-        # Initialize LLM for conversational response generation
         from langchain_google_genai import ChatGoogleGenerativeAI
-        import os
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
-            temperature=0.7  # Slightly higher for more natural responses
+            temperature=0.7
         )
     
     def __call__(self, state: GraphState) -> GraphState:
-        logger.info("Formatting output")
+        """Format output"""
+        logger.info("🎨 Formatting output")
         
         try:
-            # Convert to AgentState
             agent_state = graph_state_to_agent_state(state)
             
-            # Format the response based on execution results
             if agent_state.execution_successful:
                 formatted_output = self._format_successful_results(agent_state)
             else:
                 formatted_output = self._format_error_response(agent_state)
             
-            # Add AI response to conversation history
             agent_state.add_ai_message(formatted_output)
-            
-            # Mark processing as complete
             agent_state.processing_complete = True
             
-            logger.info("Output formatting completed")
-            
-            # Convert back to GraphState
             return agent_state_to_graph_state(agent_state)
             
         except Exception as e:
@@ -318,248 +314,101 @@ class OutputFormatterNode:
             agent_state.add_error(error_msg)
             return agent_state_to_graph_state(agent_state)
     
-    def _format_successful_results(self, state: AgentState) -> str:
-        """Format successful query results"""
+    def _format_successful_results(self, state) -> str:
+        """Format successful results - NO JSON"""
         results = state.execution_results
         
         if not results.get("data"):
-            return "I didn't find any results matching your query. The query executed successfully but returned no data."
+            return "✨ No matching data found."
         
         data = results["data"]
-        
-        # Route to appropriate formatter based on response_format
-        if state.response_format == "detailed":
-            return self._format_detailed_response(state, data)
-        else:
-            return self._format_conversational_response(state, data)
-        
-    def _format_as_markdown(self, data: list) -> str:
-        """Convert data list to a Markdown table"""
-        if not data:
-            return ""
-        
-        try:
-            df = pd.DataFrame(data)
-            
-            # Format numbers: Add commas to integers, keep floats to 2 decimals
-            # This makes "141396.74" look like "141,396.74"
-            for col in df.select_dtypes(include=['float']).columns:
-                df[col] = df[col].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
-            
-            # If dataset is large, cap it for display (e.g., top 10 rows)
-            if len(df) > 10:
-                preview = df.head(10)
-                markdown_table = preview.to_markdown(index=False)
-                return f"{markdown_table}\n\n*(...and {len(df)-10} more rows)*"
-            
-            return df.to_markdown(index=False)
-        except Exception as e:
-            logger.error(f"Markdown formatting failed: {e}")
-            return str(data) # Fallback    
+        return self._format_conversational_response(state, data)
     
-    def _format_conversational_response(self, state: AgentState, data: list) -> str:
-        """Generate natural language conversational response"""
+    def _format_conversational_response(self, state, data: list) -> str:
+        """Generate clean, chat-style response (NO markdown clutter)"""
 
-        data_summary = self._prepare_data_summary(data, state.user_query)
-        
-        # Check if user explicitly wants full/complete list
-        user_wants_full_list = any(
-            phrase in state.user_query.lower() 
-            for phrase in ["full list", "complete list", "all of them", "show all", "entire list", "show them all"]
-        )
-        
-            # Add instruction override if needed
-        if user_wants_full_list:
-            instruction_override = "\n8. User asked for the COMPLETE list, so list ALL items, not just a sample."
-        else:
-            instruction_override = ""
-        
-        # Build prompt for conversational response
-        prompt = f"""You are a helpful data analyst assistant. Convert this database query result into a natural, conversational response.
+        # Prepare summary for LLM
+        data_summary = self._prepare_data_summary(data)
 
-    User asked: "{state.user_query}"
-    Number of results: {len(data)}
-    Data sample: {data_summary}
+        prompt = f"""You are a helpful data analyst.
+
+    User question:
+    "{state.user_query}"
+
+    Data summary:
+    {data_summary}
 
     Instructions:
-    1. Start with a natural summary (e.g., "I found X customers from Germany")
-    2. Highlight key insights or interesting data points
-    3. Use friendly, conversational language
-    4. If there are many results, mention the total and highlight top items
-    5. End with an offer to provide more details if needed
-    6. Keep the response concise (3-8 sentences max)
-    7. Do NOT show raw SQL or technical details unless specifically asked
-    {instruction_override}
+    - Write a friendly, natural response like ChatGPT
+    - Use short paragraphs
+    - Mention key numbers
+    - Do NOT include lists or tables
+    - Do NOT include markdown or separators
 
-    Generate a conversational response:"""
-
+    Response:
+    """
 
         try:
-            # Generate response using LLM
-            conversational_text = self.llm.invoke(prompt).content
+            summary_text = self.llm.invoke(prompt).content.strip()
         except Exception as e:
-            logger.error(f"LLM response generation failed: {e}")
-            conversational_text = self._fallback_conversational_response(state, data)
-        
-        # --- NEW CODE STARTS HERE ---
-        
-        # Generate the Markdown Table
-        table_view = self._format_as_markdown(data)
-        
-        # Combine: Conversational Text + Table
-        response = f"{conversational_text}\n\n{table_view}"
-        
-        # --- NEW CODE ENDS HERE ---
-        
-        if state.show_sql:
-            response += f"\n\n📝 **SQL Query:**\n```sql\n{state.cleaned_sql}\n```"
-        
-        if state.show_execution_details:
-            response += f"\n\n⏱️ Execution time: {state.execution_time:.2f}s | Tables: {', '.join(state.selected_tables)}"
-        
-        return response
-    
-    def _format_detailed_response(self, state: AgentState, data: list) -> str:
-        """Format detailed response with full table"""
-        
-        # Use SQL executor's formatting
-        formatted_display = sql_executor.format_results_for_display(state.execution_results)
-        
-        # Add context
-        context_info = f"""
-📊 **Query Results**
+            logger.error(f"LLM failed: {e}")
+            summary_text = f"I found {len(data)} results for your query."
 
-{formatted_display}
+        # Build clean output
+        lines = []
+        lines.append(summary_text)
+        lines.append("")  # blank line
 
-**Query Details:**
-- SQL: {state.cleaned_sql}
-- Execution Time: {state.execution_time:.2f} seconds
-- Tables Used: {', '.join(state.selected_tables)}
-- Total Rows: {len(data)}
-"""
+        # Add results list (plain text, clean)
+        lines.append("Top results:")
+
+        for i, row in enumerate(data[:5], 1):
+            name = row.get("product_name") or row.get("name") or "Unknown"
+            revenue = row.get("total_revenue") or row.get("revenue") or 0
+            revenue = self._format_value(revenue, "revenue")
+
+            lines.append(f"{i}. {name} — {revenue}")
+
+        return "\n".join(lines)
+
         
-        return context_info
+
+        return "\n".join(response_parts)
     
-    def _prepare_data_summary(self, data: list, user_query: str = "") -> str:
-        """Prepare data summary with context awareness"""
+    def _prepare_data_summary(self, data: list) -> str:
+        """Prepare data summary for LLM"""
         if not data:
             return "No data"
         
-        # Determine how many rows to show based on context
-        user_query_lower = user_query.lower()
+        sample = data[:5]
+        lines = [f"Total: {len(data)} records"]
         
-        if any(phrase in user_query_lower for phrase in ["full", "complete", "all", "entire"]):
-            # User wants everything
-            sample_size = len(data)
-            show_all = True
-        elif len(data) <= 10:
-            # Small result set - show everything
-            sample_size = len(data)
-            show_all = True
-        else:
-            # Large result set - show sample
-            sample_size = min(5, len(data))
-            show_all = False
+        for i, row in enumerate(sample, 1):
+            row_str = ", ".join([f"{k}: {v}" for k, v in list(row.items())[:3]])
+            lines.append(f"{i}. {row_str}")
         
-        sample_data = data[:sample_size]
-        
-        # Get column names
-        columns = list(sample_data[0].keys()) if sample_data else []
-        
-        # Format summary
-        if show_all:
-            summary = f"Columns: {', '.join(columns)}\n"
-            summary += f"All {len(data)} rows:\n"
-        else:
-            summary = f"Columns: {', '.join(columns)}\n"
-            summary += f"Showing {sample_size} of {len(data)} rows:\n"
-        
-        for i, row in enumerate(sample_data, 1):
-            row_str = ", ".join([f"{k}: {v}" for k, v in list(row.items())[:4]])  # First 4 columns
-            summary += f"  {i}. {row_str}\n"
-        
-        if not show_all and len(data) > sample_size:
-            summary += f"  ... and {len(data) - sample_size} more rows\n"
-        
-        return summary
+        return "\n".join(lines)
     
-    def _fallback_conversational_response(self, state: AgentState, data: list) -> str:
-        """Simple template-based response when LLM fails"""
+    def _format_value(self, value, key: str = "") -> str:
+        """Format values intelligently"""
+        from decimal import Decimal
         
-        count = len(data)
-        
-        # Determine response based on query intent
-        if state.business_intent == "aggregation":
-            # Single value result
-            if count == 1 and len(data[0]) == 1:
-                value = list(data[0].values())[0]
-                return f"The result is: **{value}**"
-        
-        # Multiple results
-        if count <= 5:
-            return f"I found {count} result{'s' if count != 1 else ''} for your query. Here they are:\n\n{self._format_simple_list(data)}"
+        if isinstance(value, (Decimal, float)):
+            if any(term in key.lower() for term in ["revenue", "sales", "total", "price", "amount"]):
+                return f"${value:,.2f}"
+            elif value >= 1000:
+                return f"{value:,.0f}"
+            else:
+                return f"{value:.2f}"
         else:
-            top_items = self._format_simple_list(data[:5])
-            return f"I found {count} results. Here are the top 5:\n\n{top_items}\n\n_Type '/detailed' to see the complete list._"
+            return str(value)
     
-    def _format_simple_list(self, data: list) -> str:
-        """Format data as a simple bullet list"""
-        if not data:
-            return ""
-        
-        items = []
-        for i, row in enumerate(data, 1):
-            # Get first 3 columns
-            values = list(row.values())[:3]
-            item_str = " | ".join([str(v) for v in values])
-            items.append(f"{i}. {item_str}")
-        
-        return "\n".join(items)
-    
-    def _format_error_response(self, state: AgentState) -> str:
-        """Format error response with enhanced schema inspection error handling"""
-        
-        # NEW: Check for schema inspection failure first
-        if not state.selected_tables:
-            # Use the error message already formatted by schema inspector
-            if state.errors:
-                return state.errors[-1]
-            
-            # Fallback: generic schema error
-            from database.northwind_context import BUSINESS_CONTEXT
-            available_tables = list(BUSINESS_CONTEXT.keys())
-            
-            return f"""❌ I couldn't identify which database tables to use for your query: "{state.user_query}"
-
-    📋 **Available tables:**
-    {chr(10).join(f"  • {table}" for table in sorted(available_tables))}
-
-    💡 **Try asking:**
-    • Show me data from customers
-    • List all orders
-    • Show me products
-    """
-        
-        # Original error formatting for other errors
-        error_msg = "❌ I encountered an issue processing your query:\n\n"
-        
-        # Add specific error details
+    def _format_error_response(self, state) -> str:
+        """Format error response"""
         if state.errors:
-            error_msg += f"**Error:** {state.errors[-1]}\n\n"
-        
-        # Add the attempted SQL for reference
-        if state.cleaned_sql and state.show_sql:
-            error_msg += f"**Attempted SQL:**\n```sql\n{state.cleaned_sql}\n```\n\n"
-        
-        # Add suggestions if available
-        if state.validation_results and "recommendations" in state.validation_results:
-            recommendations = state.validation_results["recommendations"][:3]
-            if recommendations:
-                error_msg += "**Suggestions:**\n"
-                for i, rec in enumerate(recommendations, 1):
-                    error_msg += f"{i}. {rec}\n"
-        
-        return error_msg
+            return f"❌ {state.errors[-1]}"
+        return "❌ Something went wrong processing your query."
+
 
 class PowerBISQLAgent:
     """Main agent class that orchestrates the LangGraph workflow"""

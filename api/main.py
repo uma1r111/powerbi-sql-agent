@@ -194,36 +194,35 @@ async def process_query(
     """Process natural language query"""
     try:
         start_time = datetime.now()
-
-        # Get existing state for this session (for follow-up context)
         existing_state = session_states.get(request.session_id)
-
-        # Process query using the agent
+        
         result = agent.process_query_sync(
             request.question,
             session_id=request.session_id,
             existing_state=existing_state
         )
-
-        # Store state for next query in this session
+        
         session_states[request.session_id] = result
-
         execution_time = (datetime.now() - start_time).total_seconds()
-
-        # Extract response from result
+        
+        # Extract ONLY the formatted response
         response_text = ""
         if result.messages and len(result.messages) > 0:
             response_text = result.messages[-1].content
-
-        # Extract SQL and results from the state
-        sql_query = getattr(result, 'sql_query', None)
-        query_results = getattr(result, 'query_results', [])
-
+        
+        # ❌ DON'T DO THIS - It sends raw data:
+        # return QueryResponse(
+        #     success=True,
+        #     results=query_results,  # ← This causes the JSON to appear!
+        #     explanation=response_text
+        # )
+        
+        # ✅ DO THIS INSTEAD - Only send formatted text:
         return QueryResponse(
             success=True,
-            sql=sql_query,
-            results=query_results if query_results else [],
-            explanation=response_text,
+            sql=None,  # Don't send SQL unless requested
+            results=[],  # Don't send raw results - they're in the explanation!
+            explanation=response_text,  # This has the beautiful formatted output
             warnings=[],
             error=None,
             execution_time=execution_time
@@ -231,8 +230,7 @@ async def process_query(
 
     except Exception as e:
         import traceback
-        error_detail = f"{str(e)}\n{traceback.format_exc()}"
-        print(f"Query error: {error_detail}")
+        print(f"Query error: {str(e)}\n{traceback.format_exc()}")
         
         return QueryResponse(
             success=False,
@@ -243,6 +241,7 @@ async def process_query(
             error=str(e),
             execution_time=0
         )
+        
 
 @app.get("/api/history", response_model=List[ConversationItem])
 async def get_conversation_history(
