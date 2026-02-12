@@ -1,0 +1,112 @@
+{
+  "evaluation_date": "2026-02-12T11:59:25.573841",
+  "dataset": "Spider",
+  "total_examples": 10,
+  "metrics": {
+    "total_examples": 10,
+    "exact_match_accuracy": 0.0,
+    "execution_accuracy": 0.0,
+    "error_rate": 0.0,
+    "average_latency_seconds": 20.24570746421814,
+    "component_accuracies": {
+      "SELECT": 0.4,
+      "FROM": 0.4,
+      "WHERE": 0.6,
+      "JOIN": 1.0,
+      "GROUP_BY": 1.0,
+      "ORDER_BY": 0.7
+    }
+  },
+  "detailed_results": [
+    {
+      "question": "How many singers do we have?",
+      "gold_sql": "SELECT count(*) FROM singer",
+      "predicted_sql": "SELECT COUNT(*) \nFROM employees \nWHERE title ILIKE '%singer%';",
+      "exact_match": false,
+      "execution_match": false,
+      "execution_time": 20.752561807632446,
+      "error": null
+    },
+    {
+      "question": "What is the total number of singers?",
+      "gold_sql": "SELECT count(*) FROM singer",
+      "predicted_sql": "",
+      "exact_match": false,
+      "execution_match": false,
+      "execution_time": 42.37628197669983,
+      "error": null
+    },
+    {
+      "question": "Show name, country, age for all singers ordered by age from the oldest to the youngest.",
+      "gold_sql": "SELECT name ,  country ,  age FROM singer ORDER BY age DESC",
+      "predicted_sql": "SELECT o.customer_id AS name, 'Unknown' AS country, EXTRACT( YEAR \nFROM CURRENT_DATE ) - EXTRACT( YEAR \nFROM o.order_date ) AS age \nFROM orders AS o \nORDER BY age DESC;",
+      "exact_match": false,
+      "execution_match": false,
+      "execution_time": 27.13256049156189,
+      "error": null
+    },
+    {
+      "question": "What are the names, countries, and ages for every singer in descending order of age?",
+      "gold_sql": "SELECT name ,  country ,  age FROM singer ORDER BY age DESC",
+      "predicted_sql": "SELECT NULL AS name, NULL AS country, NULL AS age \nFROM orders \nLIMIT 0;",
+      "exact_match": false,
+      "execution_match": false,
+      "execution_time": 17.863649606704712,
+      "error": null
+    },
+    {
+      "question": "What is the average, minimum, and maximum age of all singers from France?",
+      "gold_sql": "SELECT avg(age) ,  min(age) ,  max(age) FROM singer WHERE country  =  'France'",
+      "predicted_sql": "",
+      "exact_match": false,
+      "execution_match": false,
+      "execution_time": 25.630329847335815,
+      "error": null
+    },
+    {
+      "question": "What is the average, minimum, and maximum age for all French singers?",
+      "gold_sql": "SELECT avg(age) ,  min(age) ,  max(age) FROM singer WHERE country  =  'France'",
+      "predicted_sql": "",
+      "exact_match": false,
+      "execution_match": false,
+      "execution_time": 32.06379556655884,
+      "error": null
+    },
+    {
+      "question": "Show the name and the release year of the song by the youngest singer.",
+      "gold_sql": "SELECT song_name ,  song_release_year FROM singer ORDER BY age LIMIT 1",
+      "predicted_sql": "",
+      "exact_match": false,
+      "execution_match": false,
+      "execution_time": 0.03994178771972656,
+      "error": null
+    },
+    {
+      "question": "What are the names and release years for all the songs of the youngest singer?",
+      "gold_sql": "SELECT song_name ,  song_release_year FROM singer ORDER BY age LIMIT 1",
+      "predicted_sql": "",
+      "exact_match": false,
+      "execution_match": false,
+      "execution_time": 0.04262065887451172,
+      "error": null
+    },
+    {
+      "question": "What are all distinct countries where singers above age 20 are from?",
+      "gold_sql": "SELECT DISTINCT country FROM singer WHERE age  >  20",
+      "predicted_sql": "",
+      "exact_match": false,
+      "execution_match": false,
+      "execution_time": 19.251784563064575,
+      "error": null
+    },
+    {
+      "question": "What are  the different countries with singers above age 20?",
+      "gold_sql": "SELECT DISTINCT country FROM singer WHERE age  >  20",
+      "predicted_sql": "SELECT DISTINCT country \nFROM employees \nWHERE EXTRACT(YEAR \nFROM AGE(CURRENT_DATE, birth_date)) > 20;",
+      "exact_match": false,
+      "execution_match": false,
+      "execution_time": 17.303548336029053,
+      "error": null
+    }
+  ]
+}
