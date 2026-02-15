@@ -14,13 +14,17 @@ import os
 import sys
 from pathlib import Path
 
-# Add parent directory to path to import from other modules
+# Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
 
-# Import your SQL Agent from flow.graph
+# Import SQL Agent
 from flow.graph import agent
+
+# Import preprocessor and classifier
+from utils.query_preprocessor import preprocessor
+from utils.query_classifier import classifier
 
 load_dotenv()
 
@@ -48,10 +52,13 @@ app.add_middleware(
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Session state storage (in production, use Redis or database)
+# Session state storage
 session_states = {}
 
-# User store with 3 users
+# Track last query per session for context
+last_query_per_session = {}
+
+# User store
 fake_users_db = {
     "sameed@intelliquery.com": {
         "username": "sameed@intelliquery.com",
@@ -155,13 +162,8 @@ async def root():
 
 @app.post("/api/login", response_model=LoginResponse)
 async def login_json(request: LoginRequest):
-    """JSON login endpoint for the React frontend"""
+    """JSON login endpoint"""
     user = fake_users_db.get(request.email)
-    
-    # 🔍 DEBUG PRINT - This will show up in your terminal
-    print(f"\n\n👉 DEBUG: Email='{request.email}'")
-    print(f"👉 DEBUG: Password Sent='{request.password}'")
-    print(f"👉 DEBUG: Password Expected='{user['hashed_password'] if user else 'NO USER FOUND'}'\n\n")
 
     if not user or user["hashed_password"] != request.password:
         raise HTTPException(
@@ -191,13 +193,67 @@ async def process_query(
     request: QueryRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """Process natural language query"""
+    """Process natural language query with preprocessing and context awareness"""
     try:
         start_time = datetime.now()
+        
+        # Get context from last query
+        session_context = last_query_per_session.get(request.session_id, {})
+        last_query = session_context.get("query", "")
+        last_topic = session_context.get("topic", "")
+        
+        # Check if greeting/casual conversation or follow-up
+        needs_sql, response_type = classifier.is_sql_query(
+            request.question, 
+            last_query=last_query,
+            last_topic=last_topic
+        )
+        
+        if not needs_sql:
+            # Generate conversational response
+            response = classifier.generate_response(request.question, response_type)
+            
+            print(f"\n💬 Non-SQL query detected: {response_type}")
+            print(f"   Query: {request.question}")
+            
+            return QueryResponse(
+                success=True,
+                sql=None,
+                results=[],
+                explanation=response,
+                warnings=[],
+                error=None,
+                execution_time=None  # None instead of 0.0
+            )
+        
+        # Handle follow-up queries
+        processed_query = request.question
+        if response_type == 'follow_up':
+            processed_query = classifier.expand_follow_up_query(
+                request.question, 
+                last_query, 
+                last_topic
+            )
+            print(f"\n🔗 Context expansion:")
+            print(f"   Original: {request.question}")
+            print(f"   Expanded: {processed_query}\n")
+        
+        # Preprocess the SQL query
+        preprocessed_query, corrections = preprocessor.preprocess(processed_query)
+        
+        if corrections:
+            print(f"\n📝 Query Preprocessing:")
+            print(f"   Original: {processed_query}")
+            print(f"   Preprocessed: {preprocessed_query}")
+            print(f"   Corrections: {', '.join(corrections)}\n")
+        
         existing_state = session_states.get(request.session_id)
         
+        # Process SQL query
+        print(f"\n🔍 Sending to agent: '{preprocessed_query}'")
+        
         result = agent.process_query_sync(
-            request.question,
+            preprocessed_query,
             session_id=request.session_id,
             existing_state=existing_state
         )
@@ -205,32 +261,81 @@ async def process_query(
         session_states[request.session_id] = result
         execution_time = (datetime.now() - start_time).total_seconds()
         
-        # Extract ONLY the formatted response
+        # Extract topic
+        topic = "general"
+        if 'product' in preprocessed_query.lower():
+            topic = "product"
+        elif 'customer' in preprocessed_query.lower():
+            topic = "customer"
+        elif 'order' in preprocessed_query.lower():
+            topic = "order"
+        elif 'sales' in preprocessed_query.lower() or 'revenue' in preprocessed_query.lower():
+            topic = "sales"
+        
+        # Store query as context
+        last_query_per_session[request.session_id] = {
+            "query": preprocessed_query,
+            "topic": topic
+        }
+        
+        # Extract response text
         response_text = ""
         if result.messages and len(result.messages) > 0:
-            response_text = result.messages[-1].content
+            last_message = result.messages[-1]
+            if hasattr(last_message, 'content'):
+                response_text = last_message.content
+            elif isinstance(last_message, dict):
+                response_text = last_message.get('content', '')
+            else:
+                response_text = str(last_message)
         
-        # ❌ DON'T DO THIS - It sends raw data:
-        # return QueryResponse(
-        #     success=True,
-        #     results=query_results,  # ← This causes the JSON to appear!
-        #     explanation=response_text
-        # )
+        # Extract SQL
+        sql_query = None
+        if hasattr(result, 'cleaned_sql') and result.cleaned_sql:
+            sql_query = result.cleaned_sql
+        elif hasattr(result, 'generated_sql') and result.generated_sql:
+            sql_query = result.generated_sql
         
-        # ✅ DO THIS INSTEAD - Only send formatted text:
+        # Extract results
+        query_results = []
+        if hasattr(result, 'execution_results') and result.execution_results:
+            if isinstance(result.execution_results, dict):
+                query_results = result.execution_results.get('data', [])
+            elif isinstance(result.execution_results, list):
+                query_results = result.execution_results
+        
+        # Debug logging
+        print(f"\n{'='*70}")
+        print(f"📊 SQL QUERY DEBUG:")
+        print(f"   User Input: {request.question}")
+        print(f"   Preprocessed: {preprocessed_query}")
+        print(f"   Topic: {topic}")
+        print(f"   SQL Found: {sql_query is not None}")
+        if sql_query:
+            print(f"   SQL: {sql_query[:100]}...")
+        print(f"   Results Count: {len(query_results)}")
+        print(f"   AI Response Length: {len(response_text)}")
+        print(f"   AI Response Preview: {response_text[:200]}...")
+        print(f"   Execution Successful: {result.execution_successful}")
+        print(f"   Processing Complete: {result.processing_complete}")
+        if result.errors:
+            print(f"   Errors: {result.errors}")
+        print(f"{'='*70}\n")
+        
         return QueryResponse(
             success=True,
-            sql=None,  # Don't send SQL unless requested
-            results=[],  # Don't send raw results - they're in the explanation!
-            explanation=response_text,  # This has the beautiful formatted output
+            sql=sql_query,
+            results=query_results,
+            explanation=response_text,
             warnings=[],
             error=None,
-            execution_time=execution_time
+            execution_time=execution_time if sql_query else None
         )
 
     except Exception as e:
         import traceback
-        print(f"Query error: {str(e)}\n{traceback.format_exc()}")
+        error_trace = traceback.format_exc()
+        print(f"❌ Query error: {str(e)}\n{error_trace}")
         
         return QueryResponse(
             success=False,
@@ -239,9 +344,8 @@ async def process_query(
             explanation=None,
             warnings=[],
             error=str(e),
-            execution_time=0
+            execution_time=None
         )
-        
 
 @app.get("/api/history", response_model=List[ConversationItem])
 async def get_conversation_history(
@@ -250,8 +354,6 @@ async def get_conversation_history(
     current_user: User = Depends(get_current_user)
 ):
     """Get conversation history"""
-    # This would query your state's context window
-    # For now, returning empty list
     return []
 
 @app.get("/health")
@@ -270,5 +372,7 @@ if __name__ == "__main__":
     print("=" * 70)
     print("📍 API will be available at: http://localhost:8000")
     print("📍 API docs at: http://localhost:8000/docs")
+    print("📍 Query Preprocessor: ENABLED ✅")
+    print("📍 Context Awareness: ENABLED ✅")
     print("=" * 70)
     uvicorn.run(app, host="0.0.0.0", port=8000)
