@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, LogOut, MessageSquare, Database, Clock, User, Menu, BarChart2, MessageCircle, Search, Trash2, Plus, Edit2, Check, X, Code, Copy, ChevronDown } from 'lucide-react';
 import axios from 'axios';
+import DashboardContainer from './components/Dashboard/DashboardContainer';
 
 const API_URL = 'http://localhost:8000/api';
 
@@ -98,7 +99,7 @@ const LoginPage = ({ onLogin }) => {
 };
 
 // ─── Chat Panel (right side) ─────────────────────────────────────────
-const ChatPanel = ({ messages, setMessages, scrollToIndex }) => {
+const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId }) => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
@@ -124,18 +125,27 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex }) => {
       const token = localStorage.getItem('token');
       const response = await axios.post(
         `${API_URL}/query`,
-        { question: input, session_id: 'default' },
+        { question: input, session_id: sessionId || 'default' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const aiMsg = {
         type: 'ai',
         content: response.data.explanation || 'Query processed successfully.',
-        sql: response.data.sql,  // Store SQL but don't display in chat
+        sql: response.data.sql,
         results: response.data.results || [],
         execution_time: response.data.execution_time,
+        chart: response.data.chart,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, aiMsg]);
+
+      if (response.data.chart) {
+        console.log('📊 Chart created, triggering dashboard refresh');
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('refreshDashboard'));
+        }, 500);
+      }
+
     } catch (error) {
       setMessages(prev => [
         ...prev,
@@ -177,10 +187,10 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex }) => {
                   : 'bg-gray-50 border border-gray-200 text-gray-800'
                 }`}
             >
-              {(!msg.results || msg.results.length === 0) && <p>{msg.content}</p>}
+              {/* Text response */}
+              <p>{msg.content}</p>
 
-              {/* SQL removed - only shown in Conversation History */}
-
+              {/* Table Display */}
               {msg.results && msg.results.length > 0 && (
                 <div className="mt-2 overflow-x-auto">
                   <table className="w-full text-xs border-collapse">
@@ -208,6 +218,14 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex }) => {
                 </div>
               )}
 
+              {/* Chart notification */}
+              {msg.chart && (
+                <p className="text-xs text-blue-600 mt-2 italic">
+                  📊 Visualization added to dashboard
+                </p>
+              )}
+
+              {/* Execution time */}
               {msg.execution_time && msg.execution_time > 0 && (
                 <p className="text-xs text-gray-400 mt-1">Executed in {msg.execution_time.toFixed(2)}s</p>
               )}
@@ -275,7 +293,6 @@ const HistoryTab = ({ messages, onClickQuery }) => {
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    // Optional: Show a toast notification
     alert('SQL copied to clipboard!');
   };
 
@@ -336,6 +353,11 @@ const HistoryTab = ({ messages, onClickQuery }) => {
                           {hasResults && (
                             <span className="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded-full">
                               {aiResponse.results.length} rows
+                            </span>
+                          )}
+                          {aiResponse?.chart && (
+                            <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full">
+                              📊 Chart
                             </span>
                           )}
                         </div>
@@ -623,7 +645,7 @@ const Dashboard = ({ user, onLogout }) => {
               <Menu className="w-5 h-5" />
             </button>
             <h2 className="text-lg font-bold text-gray-900">
-              {activeNav === 'history' ? 'Conversation History' : activeConv?.title || 'Dashboard'}
+              {activeNav === 'history' ? 'Conversation History' : 'Dashboard'}
             </h2>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -636,16 +658,8 @@ const Dashboard = ({ user, onLogout }) => {
           {activeNav === 'history' ? (
             <HistoryTab messages={activeConv?.messages || []} onClickQuery={handleHistoryClick} />
           ) : (
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className="text-center">
-                <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
-                  <BarChart2 className="w-10 h-10 text-gray-300" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">Dashboard</h3>
-                <p className="text-sm text-gray-400 max-w-xs mx-auto">
-                  Ask questions in the chat to get data insights. Visualizations and graphs will appear here as you explore your data.
-                </p>
-              </div>
+            <div className="flex-1 overflow-hidden">
+              <DashboardContainer sessionId={`session-${activeConvId}`} />
             </div>
           )}
 
@@ -654,6 +668,7 @@ const Dashboard = ({ user, onLogout }) => {
               messages={activeConv?.messages || []}
               setMessages={setMessages}
               scrollToIndex={scrollToIndex}
+              sessionId={`session-${activeConvId}`}
             />
           </div>
         </div>
