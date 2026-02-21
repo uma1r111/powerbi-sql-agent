@@ -147,7 +147,7 @@ class DashboardManager:
                     'position': {'x': len(queries) % 3 * 3, 'y': 0, 'w': 3, 'h': 2}
                 })
             
-            # Query 3: If has categorical column + numeric, group by
+            # Query 3: If has categorical column + numeric, group by (BAR CHART)
             if cat_cols and numeric_cols:
                 cat_col = cat_cols[0]
                 num_col = numeric_cols[0]
@@ -185,20 +185,35 @@ class DashboardManager:
                     'position': {'x': 6, 'y': 2, 'w': 6, 'h': 4}
                 })
             
-            # Query 5: If has multiple categorical columns, distribution
-            if len(cat_cols) >= 2:
+            # Query 5: PIE CHART - Use SUM if numeric available, otherwise COUNT
+            if len(cat_cols) >= 1:
                 cat_col = cat_cols[0]
+                
+                # FIXED: Use numeric aggregation if available, otherwise use COUNT
+                if numeric_cols:
+                    num_col = numeric_cols[0]
+                    pie_sql = f"""
+                        SELECT {cat_col}, SUM({num_col}) as value
+                        FROM {table_name}
+                        GROUP BY {cat_col}
+                        ORDER BY value DESC
+                        LIMIT 10
+                    """
+                    title = f'{cat_col.replace("_", " ").title()} by {num_col.replace("_", " ").title()}'
+                else:
+                    pie_sql = f"""
+                        SELECT {cat_col}, COUNT(*) as value
+                        FROM {table_name}
+                        GROUP BY {cat_col}
+                        ORDER BY value DESC
+                        LIMIT 10
+                    """
+                    title = f'Distribution by {cat_col.replace("_", " ").title()}'
                 
                 queries.append({
                     'id': f'dist_{table_name}_{cat_col}',
-                    'title': f'Distribution by {cat_col.replace("_", " ").title()}',
-                    'sql': f"""
-                        SELECT {cat_col}, COUNT(*) as count
-                        FROM {table_name}
-                        GROUP BY {cat_col}
-                        ORDER BY count DESC
-                        LIMIT 10
-                    """,
+                    'title': title,
+                    'sql': pie_sql,
                     'chart_type': 'pie',
                     'position': {'x': 0, 'y': 6, 'w': 6, 'h': 4}
                 })

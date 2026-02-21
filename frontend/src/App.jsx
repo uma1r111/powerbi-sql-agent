@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, LogOut, MessageSquare, Database, Clock, User, Menu, BarChart2, MessageCircle, Search, Trash2, Plus, Edit2, Check, X, Code, Copy, ChevronDown } from 'lucide-react';
+import { Send, LogOut, MessageSquare, Database, Clock, User, Menu, BarChart2, MessageCircle, Search, Trash2, Plus, Edit2, Check, X, Code, Copy, ChevronDown, PieChart } from 'lucide-react';
 import axios from 'axios';
 import DashboardContainer from './components/Dashboard/DashboardContainer';
+import VisualizationHistory from './components/VisualizationHistory';
 
 const API_URL = 'http://localhost:8000/api';
 
@@ -99,7 +100,7 @@ const LoginPage = ({ onLogin }) => {
 };
 
 // ─── Chat Panel (right side) ─────────────────────────────────────────
-const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId }) => {
+const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCreated }) => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
@@ -117,7 +118,8 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId }) => {
 
   const sendQuery = async () => {
     if (!input.trim() || loading) return;
-    const userMsg = { type: 'user', content: input, timestamp: new Date() };
+    const queryText = input;
+    const userMsg = { type: 'user', content: queryText, timestamp: new Date() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
@@ -125,7 +127,7 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId }) => {
       const token = localStorage.getItem('token');
       const response = await axios.post(
         `${API_URL}/query`,
-        { question: input, session_id: sessionId || 'default' },
+        { question: queryText, session_id: sessionId || 'default' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const aiMsg = {
@@ -139,6 +141,16 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId }) => {
       };
       setMessages(prev => [...prev, aiMsg]);
 
+      // Store chart in conversation history
+      if (response.data.chart && onChartCreated) {
+        onChartCreated({
+          ...response.data.chart,
+          query: queryText,
+          created_at: new Date().toISOString()
+        });
+      }
+
+      // Trigger dashboard refresh
       if (response.data.chart) {
         console.log('📊 Chart created, triggering dashboard refresh');
         setTimeout(() => {
@@ -181,16 +193,14 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId }) => {
           >
             <div
               className={`max-w-[92%] rounded-lg px-3 py-2 text-sm ${msg.type === 'user'
-                ? 'bg-blue-600 text-white'
-                : msg.type === 'error'
-                  ? 'bg-red-50 border border-red-200 text-red-700'
-                  : 'bg-gray-50 border border-gray-200 text-gray-800'
+                  ? 'bg-blue-600 text-white'
+                  : msg.type === 'error'
+                    ? 'bg-red-50 border border-red-200 text-red-700'
+                    : 'bg-gray-50 border border-gray-200 text-gray-800'
                 }`}
             >
-              {/* Text response */}
               <p>{msg.content}</p>
 
-              {/* Table Display */}
               {msg.results && msg.results.length > 0 && (
                 <div className="mt-2 overflow-x-auto">
                   <table className="w-full text-xs border-collapse">
@@ -218,14 +228,12 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId }) => {
                 </div>
               )}
 
-              {/* Chart notification */}
               {msg.chart && (
                 <p className="text-xs text-blue-600 mt-2 italic">
                   📊 Visualization added to dashboard
                 </p>
               )}
 
-              {/* Execution time */}
               {msg.execution_time && msg.execution_time > 0 && (
                 <p className="text-xs text-gray-400 mt-1">Executed in {msg.execution_time.toFixed(2)}s</p>
               )}
@@ -280,7 +288,7 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId }) => {
   );
 };
 
-// ─── Conversation History Tab with Expandable SQL ────────────────────────────────────────
+// ─── Conversation History Tab ────────────────────────────────────────
 const HistoryTab = ({ messages, onClickQuery }) => {
   const [search, setSearch] = useState('');
   const [expandedSql, setExpandedSql] = useState(null);
@@ -341,7 +349,6 @@ const HistoryTab = ({ messages, onClickQuery }) => {
                   key={msg.index}
                   className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                 >
-                  {/* Query Header */}
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex-1 min-w-0">
@@ -374,7 +381,6 @@ const HistoryTab = ({ messages, onClickQuery }) => {
                       </button>
                     </div>
 
-                    {/* SQL Section */}
                     {aiResponse?.sql && (
                       <div className="mt-3">
                         <div className="flex items-center justify-between mb-2">
@@ -397,7 +403,6 @@ const HistoryTab = ({ messages, onClickQuery }) => {
                           )}
                         </div>
 
-                        {/* Expandable SQL */}
                         {isSqlExpanded && (
                           <div className="bg-gray-900 rounded-lg p-3 overflow-x-auto">
                             <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
@@ -406,7 +411,6 @@ const HistoryTab = ({ messages, onClickQuery }) => {
                           </div>
                         )}
 
-                        {/* SQL Preview (when collapsed) */}
                         {!isSqlExpanded && (
                           <div className="bg-gray-50 rounded px-3 py-2">
                             <p className="text-xs text-gray-500 font-mono truncate">
@@ -442,6 +446,7 @@ const Dashboard = ({ user, onLogout }) => {
           timestamp: new Date()
         }
       ],
+      charts: [],
       lastUpdated: new Date()
     }
   ]);
@@ -469,6 +474,38 @@ const Dashboard = ({ user, onLogout }) => {
     }));
   };
 
+  const handleChartCreated = (chart) => {
+    setConversations(prev => prev.map(conv => {
+      if (conv.id === activeConvId) {
+        return {
+          ...conv,
+          charts: [...(conv.charts || []), chart]
+        };
+      }
+      return conv;
+    }));
+  };
+
+  const handleChartsLoaded = (charts) => {
+    // Add initial dashboard charts to visualization history
+    setConversations(prev => prev.map(conv => {
+      if (conv.id === activeConvId) {
+        // Only add if charts array is empty (first load)
+        if (!conv.charts || conv.charts.length === 0) {
+          return {
+            ...conv,
+            charts: charts.map(chart => ({
+              ...chart,
+              query: 'Initial Dashboard',
+              created_at: chart.created_at || new Date().toISOString()
+            }))
+          };
+        }
+      }
+      return conv;
+    }));
+  };
+
   const createNewConversation = () => {
     const newId = Math.max(...conversations.map(c => c.id)) + 1;
     const newConv = {
@@ -481,6 +518,7 @@ const Dashboard = ({ user, onLogout }) => {
           timestamp: new Date()
         }
       ],
+      charts: [],
       lastUpdated: new Date()
     };
     setConversations(prev => [...prev, newConv]);
@@ -546,13 +584,14 @@ const Dashboard = ({ user, onLogout }) => {
             {[
               { id: 'dashboard', label: 'Dashboard', icon: BarChart2 },
               { id: 'history', label: 'Conversation History', icon: Clock },
+              { id: 'visualizations', label: 'Visualization History', icon: PieChart },
             ].map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveNav(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${activeNav === item.id
-                  ? 'bg-blue-50 text-blue-600 font-semibold'
-                  : 'text-gray-600 hover:bg-gray-50'
+                    ? 'bg-blue-50 text-blue-600 font-semibold'
+                    : 'text-gray-600 hover:bg-gray-50'
                   }`}
               >
                 <item.icon className="w-4 h-4" />
@@ -585,8 +624,8 @@ const Dashboard = ({ user, onLogout }) => {
                     <button
                       onClick={() => setActiveConvId(conv.id)}
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${activeConvId === conv.id
-                        ? 'bg-blue-50 text-blue-600 font-semibold'
-                        : 'text-gray-600 hover:bg-gray-50'
+                          ? 'bg-blue-50 text-blue-600 font-semibold'
+                          : 'text-gray-600 hover:bg-gray-50'
                         }`}
                     >
                       <MessageSquare className="w-3.5 h-3.5 shrink-0" />
@@ -645,7 +684,11 @@ const Dashboard = ({ user, onLogout }) => {
               <Menu className="w-5 h-5" />
             </button>
             <h2 className="text-lg font-bold text-gray-900">
-              {activeNav === 'history' ? 'Conversation History' : 'Dashboard'}
+              {activeNav === 'history'
+                ? 'Conversation History'
+                : activeNav === 'visualizations'
+                  ? 'Visualization History'
+                  : 'Dashboard'}
             </h2>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -657,9 +700,25 @@ const Dashboard = ({ user, onLogout }) => {
         <div className="flex flex-1 overflow-hidden">
           {activeNav === 'history' ? (
             <HistoryTab messages={activeConv?.messages || []} onClickQuery={handleHistoryClick} />
+          ) : activeNav === 'visualizations' ? (
+            <VisualizationHistory
+              charts={activeConv?.charts || []}
+              onRestoreChart={(chart) => {
+                console.log('Restoring chart to dashboard:', chart.title);
+                window.dispatchEvent(new CustomEvent('refreshDashboard'));
+              }}
+              onClearHistory={() => {
+                setConversations(prev => prev.map(conv =>
+                  conv.id === activeConvId ? { ...conv, charts: [] } : conv
+                ));
+              }}
+            />
           ) : (
             <div className="flex-1 overflow-hidden">
-              <DashboardContainer sessionId={`session-${activeConvId}`} />
+              <DashboardContainer
+                sessionId={`session-${activeConvId}`}
+                onChartsLoaded={handleChartsLoaded}
+              />
             </div>
           )}
 
@@ -669,6 +728,7 @@ const Dashboard = ({ user, onLogout }) => {
               setMessages={setMessages}
               scrollToIndex={scrollToIndex}
               sessionId={`session-${activeConvId}`}
+              onChartCreated={handleChartCreated}
             />
           </div>
         </div>

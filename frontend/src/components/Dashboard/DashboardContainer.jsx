@@ -1,11 +1,15 @@
 // frontend/src/components/Dashboard/DashboardContainer.jsx
+// Compatible with react-grid-layout v2.2.2
 
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, Loader2, AlertCircle } from 'lucide-react';
+import GridLayout from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 import ChartCard from './ChartCard';
 import FilterPanel from './FilterPanel';
 
-const DashboardContainer = ({ sessionId = 'default' }) => {
+const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
     const [dashboard, setDashboard] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -17,7 +21,6 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
         loadDashboard();
     }, [sessionId]);
 
-    // Listen for refresh events from chat
     useEffect(() => {
         const handleRefresh = () => {
             console.log('🔄 Dashboard refresh triggered by query');
@@ -36,7 +39,6 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
 
             console.log('🔄 Fetching dashboard...');
 
-            // Use /current to get existing dashboard (with query-added charts)
             const response = await fetch(
                 `http://localhost:8000/api/dashboard/current?session_id=${sessionId}`,
                 {
@@ -54,7 +56,6 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
             console.log('✅ Dashboard loaded:', data);
 
             if (data.dashboard) {
-                // Filter out charts that user has removed
                 const filteredCharts = data.dashboard.charts.filter(
                     chart => !removedChartIds.has(chart.chart_id)
                 );
@@ -63,6 +64,10 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
                     ...data.dashboard,
                     charts: filteredCharts
                 });
+
+                if (onChartsLoaded && filteredCharts.length > 0) {
+                    onChartsLoaded(filteredCharts);
+                }
 
                 console.log(`📊 Dashboard has ${filteredCharts.length} charts (${removedChartIds.size} removed by user)`);
             }
@@ -85,16 +90,12 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
         try {
             console.log('🗑️ Removing chart:', chartId);
 
-            // Add to removed set (persists across refreshes)
             setRemovedChartIds(prev => new Set([...prev, chartId]));
-
-            // Update UI immediately
             setDashboard(prev => ({
                 ...prev,
                 charts: prev.charts.filter(c => c.chart_id !== chartId)
             }));
 
-            // Also remove from backend
             const token = localStorage.getItem('token');
             await fetch('http://localhost:8000/api/dashboard/remove-chart', {
                 method: 'POST',
@@ -135,7 +136,6 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
 
             const data = await response.json();
 
-            // Filter out removed charts
             const filteredCharts = data.dashboard.charts.filter(
                 chart => !removedChartIds.has(chart.chart_id)
             );
@@ -167,7 +167,6 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
 
             const data = await response.json();
 
-            // Filter out removed charts
             const filteredCharts = data.dashboard.charts.filter(
                 chart => !removedChartIds.has(chart.chart_id)
             );
@@ -181,7 +180,6 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
         }
     };
 
-    // Loading state
     if (loading) {
         return (
             <div className="flex items-center justify-center h-full bg-gray-50">
@@ -193,7 +191,6 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
         );
     }
 
-    // Error state
     if (error) {
         return (
             <div className="flex items-center justify-center h-full bg-gray-50">
@@ -212,7 +209,6 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
         );
     }
 
-    // Empty dashboard state
     if (!dashboard || !dashboard.charts || dashboard.charts.length === 0) {
         return (
             <div className="flex items-center justify-center h-full bg-gray-50">
@@ -233,14 +229,23 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
         );
     }
 
-    // Dashboard with charts
+    // Prepare layout for react-grid-layout v2
+    const layout = dashboard.charts.map((chart, index) => ({
+        i: chart.chart_id,
+        x: chart.position?.x || (index % 3) * 4,
+        y: chart.position?.y || Math.floor(index / 3) * 6,
+        w: chart.position?.w || (chart.type === 'kpi' ? 3 : 6),
+        h: chart.position?.h || (chart.type === 'kpi' ? 4 : 8),
+        minW: chart.type === 'kpi' ? 2 : 4,
+        minH: chart.type === 'kpi' ? 3 : 6,
+    }));
+
     return (
-        <div className="h-full flex flex-col p-6 bg-gray-50 overflow-auto">
-            {/* Header */}
+        <div className="h-full flex flex-col p-6 bg-gray-50">
             <div className="flex items-center justify-between mb-4 shrink-0">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-                    <p className="text-sm text-gray-500">{dashboard.charts.length} charts</p>
+                    <p className="text-sm text-gray-500">{dashboard.charts.length} charts • Drag to move, resize from corners</p>
                 </div>
                 <button
                     onClick={refreshDashboard}
@@ -252,7 +257,6 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
                 </button>
             </div>
 
-            {/* Filter Panel */}
             {dashboard.filters && Object.keys(dashboard.filters).length > 0 && (
                 <FilterPanel
                     filters={dashboard.filters}
@@ -267,27 +271,28 @@ const DashboardContainer = ({ sessionId = 'default' }) => {
                 />
             )}
 
-            {/* Charts Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-[300px]">
-                {dashboard.charts.map((chart) => {
-                    console.log('🎨 Rendering chart:', chart.title, chart.type);
-
-                    return (
-                        <div
-                            key={chart.chart_id}
-                            className={`
-                ${chart.type === 'kpi' ? 'md:col-span-1' : 'md:col-span-2'}
-                ${chart.type === 'table' ? 'row-span-2' : 'row-span-1'}
-              `}
-                        >
+            <div className="flex-1 overflow-auto">
+                <GridLayout
+                    className="layout"
+                    layout={layout}
+                    cols={12}
+                    rowHeight={50}
+                    width={1200}
+                    isDraggable={true}
+                    isResizable={true}
+                    compactType="vertical"
+                    preventCollision={false}
+                >
+                    {dashboard.charts.map((chart) => (
+                        <div key={chart.chart_id} className="dashboard-grid-item">
                             <ChartCard
                                 chart={chart}
                                 onRemove={removeChart}
                                 onSliceClick={(filterKey, filterValue) => applyFilter(filterKey, filterValue)}
                             />
                         </div>
-                    );
-                })}
+                    ))}
+                </GridLayout>
             </div>
         </div>
     );
