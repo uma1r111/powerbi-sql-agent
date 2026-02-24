@@ -1,0 +1,176 @@
+{
+  "evaluation_date": "2026-02-12T12:06:58.206717",
+  "database": "Northwind",
+  "total_queries": 15,
+  "results": [
+    {
+      "question": "How many customers are in the database?",
+      "category": "simple_count",
+      "expected_sql": "SELECT COUNT(*) FROM customers",
+      "generated_sql": "SELECT COUNT(*) AS total_customers \nFROM customers;",
+      "execution_successful": true,
+      "result_count": 1,
+      "execution_time": 3.861562728881836,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "Show all products that are out of stock",
+      "category": "filtering",
+      "expected_sql": "SELECT * FROM products WHERE units_in_stock = 0",
+      "generated_sql": "SELECT product_name, units_in_stock \nFROM products \nWHERE units_in_stock = 0;",
+      "execution_successful": true,
+      "result_count": 5,
+      "execution_time": 3.9918313026428223,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "What are the top 5 products by unit price?",
+      "category": "ordering_limiting",
+      "expected_sql": "SELECT product_name, unit_price FROM products ORDER BY unit_price DESC LIMIT 5",
+      "generated_sql": "SELECT product_name, unit_price \nFROM products \nORDER BY unit_price DESC \nLIMIT 5;",
+      "execution_successful": true,
+      "result_count": 5,
+      "execution_time": 3.7319436073303223,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "How many orders were placed in 1997?",
+      "category": "date_filtering",
+      "expected_sql": "SELECT COUNT(*) FROM orders WHERE EXTRACT(YEAR FROM order_date) = 1997",
+      "generated_sql": "SELECT COUNT(order_id) \nFROM orders \nWHERE EXTRACT(YEAR \nFROM order_date) = 1997;",
+      "execution_successful": true,
+      "result_count": 1,
+      "execution_time": 3.528777837753296,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "List all customers from Germany",
+      "category": "simple_filtering",
+      "expected_sql": "SELECT * FROM customers WHERE country = 'Germany'",
+      "generated_sql": "SELECT company_name, contact_name, city \nFROM customers \nWHERE country = 'Germany';",
+      "execution_successful": true,
+      "result_count": 11,
+      "execution_time": 3.7812979221343994,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "What is the total revenue from all orders?",
+      "category": "aggregation",
+      "expected_sql": "SELECT SUM(unit_price * quantity * (1 - discount)) FROM order_details",
+      "generated_sql": "SELECT SUM(od.quantity * od.unit_price * (1 - od.discount)) AS total_revenue \nFROM order_details od;",
+      "execution_successful": true,
+      "result_count": 1,
+      "execution_time": 2.767793655395508,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "Show the top 10 customers by total revenue",
+      "category": "complex_join_aggregation",
+      "expected_sql": "SELECT c.customer_id, c.company_name, \n                                  SUM(od.unit_price * od.quantity * (1 - od.discount)) as total_revenue\n                                  FROM customers c\n                                  JOIN orders o ON c.customer_id = o.customer_id\n                                  JOIN order_details od ON o.order_id = od.order_id\n                                  GROUP BY c.customer_id, c.company_name\n                                  ORDER BY total_revenue DESC\n                                  LIMIT 10",
+      "generated_sql": "SELECT c.company_name, SUM(od.quantity * od.unit_price * (1 - od.discount)) AS total_revenue \nFROM customers c \nJOIN orders o ON c.customer_id = o.customer_id \nJOIN order_details od ON o.order_id = od.order_id \nGROUP BY c.customer_id, c.company_name \nORDER BY total_revenue DESC \nLIMIT 10;",
+      "execution_successful": true,
+      "result_count": 10,
+      "execution_time": 4.81325101852417,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "How many products are in each category?",
+      "category": "join_group_by",
+      "expected_sql": "SELECT c.category_name, COUNT(p.product_id) as product_count\n                                  FROM categories c\n                                  LEFT JOIN products p ON c.category_id = p.category_id\n                                  GROUP BY c.category_name",
+      "generated_sql": "SELECT c.category_name, COUNT(p.product_id) AS product_count \nFROM categories c \nLEFT JOIN products p ON c.category_id = p.category_id \nGROUP BY c.category_id, c.category_name \nORDER BY product_count DESC;",
+      "execution_successful": true,
+      "result_count": 8,
+      "execution_time": 5.634016513824463,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "Which employees have processed the most orders?",
+      "category": "join_aggregation",
+      "expected_sql": "SELECT e.employee_id, e.first_name, e.last_name, COUNT(o.order_id) as order_count\n                                  FROM employees e\n                                  JOIN orders o ON e.employee_id = o.employee_id\n                                  GROUP BY e.employee_id, e.first_name, e.last_name\n                                  ORDER BY order_count DESC",
+      "generated_sql": "SELECT e.first_name, e.last_name, COUNT(o.order_id) AS orders_processed \nFROM employees AS e \nJOIN orders AS o ON e.employee_id = o.employee_id \nGROUP BY e.employee_id, e.first_name, e.last_name \nORDER BY orders_processed DESC;",
+      "execution_successful": true,
+      "result_count": 9,
+      "execution_time": 4.193969488143921,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "What is the average order value?",
+      "category": "subquery_aggregation",
+      "expected_sql": "SELECT AVG(order_total) FROM (\n                                      SELECT o.order_id, SUM(od.unit_price * od.quantity * (1 - od.discount)) as order_total\n                                      FROM orders o\n                                      JOIN order_details od ON o.order_id = od.order_id\n                                      GROUP BY o.order_id\n                                  ) as order_totals",
+      "generated_sql": "SELECT AVG(order_total) AS average_order_value \nFROM ( \nSELECT order_id, SUM(quantity * unit_price * (1 - discount)) AS order_total \nFROM order_details \nGROUP BY order_id ) AS order_totals;",
+      "execution_successful": true,
+      "result_count": 1,
+      "execution_time": 7.17326807975769,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "Show monthly sales trends for 1997",
+      "category": "date_aggregation",
+      "expected_sql": "SELECT EXTRACT(MONTH FROM o.order_date) as month,\n                                  SUM(od.unit_price * od.quantity * (1 - od.discount)) as monthly_sales\n                                  FROM orders o\n                                  JOIN order_details od ON o.order_id = od.order_id\n                                  WHERE EXTRACT(YEAR FROM o.order_date) = 1997\n                                  GROUP BY month\n                                  ORDER BY month",
+      "generated_sql": "SELECT EXTRACT(MONTH \nFROM o.order_date) AS sales_month, SUM(od.quantity * od.unit_price * (1 - od.discount)) AS total_sales \nFROM orders AS o \nJOIN order_details AS od ON o.order_id = od.order_id \nWHERE EXTRACT(YEAR \nFROM o.order_date) = 1997 \nGROUP BY sales_month \nORDER BY sales_month;",
+      "execution_successful": true,
+      "result_count": 12,
+      "execution_time": 4.384995460510254,
+      "errors": [],
+      "warnings": [
+        "Auto-corrected: 'sales' \u2192 'sales'"
+      ]
+    },
+    {
+      "question": "List products that need reordering",
+      "category": "complex_filtering",
+      "expected_sql": "SELECT * FROM products WHERE units_in_stock < reorder_level AND discontinued = 0",
+      "generated_sql": "SELECT product_name, units_in_stock, reorder_level \nFROM products \nWHERE units_in_stock <= reorder_level AND units_in_stock > 0;",
+      "execution_successful": true,
+      "result_count": 17,
+      "execution_time": 4.304043292999268,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "What percentage of products are discontinued?",
+      "category": "conditional_aggregation",
+      "expected_sql": "SELECT \n                                  (COUNT(CASE WHEN discontinued = 1 THEN 1 END)::FLOAT / COUNT(*)::FLOAT * 100) as percentage\n                                  FROM products",
+      "generated_sql": "",
+      "execution_successful": false,
+      "result_count": 0,
+      "execution_time": 2.712090253829956,
+      "errors": [
+        "Workflow execution failed: Type is not msgpack serializable: ErrorDetail"
+      ],
+      "warnings": []
+    },
+    {
+      "question": "Show all orders shipped to France",
+      "category": "simple_filtering",
+      "expected_sql": "SELECT * FROM orders WHERE ship_country = 'France'",
+      "generated_sql": "SELECT * \nFROM orders \nWHERE ship_country = 'France';",
+      "execution_successful": true,
+      "result_count": 77,
+      "execution_time": 3.544367790222168,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "question": "Which supplier provides the most products?",
+      "category": "join_aggregation_limit",
+      "expected_sql": "SELECT s.supplier_id, s.company_name, COUNT(p.product_id) as product_count\n                                  FROM suppliers s\n                                  JOIN products p ON s.supplier_id = p.supplier_id\n                                  GROUP BY s.supplier_id, s.company_name\n                                  ORDER BY product_count DESC\n                                  LIMIT 1",
+      "generated_sql": "SELECT s.company_name, COUNT(p.product_id) AS number_of_products \nFROM suppliers AS s \nJOIN products AS p ON s.supplier_id = p.supplier_id \nGROUP BY s.company_name \nORDER BY number_of_products DESC \nLIMIT 1;",
+      "execution_successful": true,
+      "result_count": 1,
+      "execution_time": 3.3018085956573486,
+      "errors": [],
+      "warnings": []
+    }
+  ]
+}
