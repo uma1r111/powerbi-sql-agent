@@ -21,6 +21,9 @@ from database.schema_discovery import SchemaDiscovery
 # NEW: Import error manager
 from tools.error_manager import error_manager
 
+from utils.query_preprocessor import preprocessor
+
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -53,10 +56,28 @@ class SchemaInspectorNode:
             
         Returns:
             Updated agent state with schema context
-        """
-        logger.info(f"🔍 Schema Inspector Node: Processing query '{state.user_query}'")
         
+        Inspect schema and select relevant tables"""
+        
+        logger.info(f"🔍 Schema Inspector analyzing query: {state.user_query}")
+        
+        # ✨ NEW: Preprocess the query
+        preprocessed_query, corrections = preprocessor.preprocess(state.user_query)
+        
+        # Log corrections if any were made
+        if corrections:
+            logger.info(f"📝 Query preprocessing corrections: {corrections}")
+            # Optionally store corrections in state
+            state.add_warning(f"Auto-corrected: {', '.join(corrections)}")
+        
+        # Use preprocessed query for the rest of the logic
+        original_query = state.user_query
+        state.user_query = preprocessed_query  # Update with corrected version
+        state.original_query = original_query  # Keep original for reference
+        
+        # Continue with existing schema inspection logic...
         try:
+
             # Update current plan step
             current_plan = getattr(state, '_current_plan', None)
             if current_plan:
