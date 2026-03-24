@@ -3,10 +3,13 @@
 import React, { useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 
-const DataTable = ({ chart }) => {
+const DataTable = ({ chart, selectedKey, selectedValue, onSelect }) => {
     const { data, config } = chart;
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
     const [currentPage, setCurrentPage] = useState(1);
+
+    const hasSelection = !!selectedValue;
+    const isSelectable = !!onSelect;
 
     const rowsPerPage = 10;
     const columns = config?.columns || Object.keys(data[0] || {});
@@ -49,6 +52,22 @@ const DataTable = ({ chart }) => {
         }));
     };
 
+    // Cross-filter: click a row to select it; click the same row again to clear
+    const handleRowClick = (row) => {
+        if (!isSelectable) return;
+        const col = actualColumns[0];
+        onSelect(col, row[col]);
+    };
+
+    const getRowClass = (row) => {
+        if (!hasSelection || !selectedKey) return 'hover:bg-gray-50';
+        const matchCol = actualColumns.find(c => c.toLowerCase() === selectedKey.toLowerCase());
+        if (!matchCol) return 'hover:bg-gray-50';
+        const isSelected = String(row[matchCol]) === selectedValue;
+        if (isSelected) return 'bg-blue-50 border-l-2 border-blue-500 hover:bg-blue-100';
+        return 'opacity-40 hover:opacity-70 hover:bg-gray-50';
+    };
+
     const formatValue = (value) => {
         if (typeof value === 'number') {
             return value.toLocaleString();
@@ -82,7 +101,11 @@ const DataTable = ({ chart }) => {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {paginatedData.map((row, rowIdx) => (
-                            <tr key={rowIdx} className="hover:bg-gray-50">
+                            <tr
+                                key={rowIdx}
+                                className={`transition-all ${getRowClass(row)} ${isSelectable ? 'cursor-pointer' : ''}`}
+                                onClick={() => handleRowClick(row)}
+                            >
                                 {actualColumns.map((col) => (
                                     <td key={col} className="px-4 py-3 whitespace-nowrap text-gray-900">
                                         {formatValue(row[col])}

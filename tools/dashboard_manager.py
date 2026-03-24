@@ -120,36 +120,62 @@ class DashboardManager:
         return cat_cols
     
     def _get_col_stats(self, table_name: str, col: str):
-        """Return (total_rows, distinct_count) for a column."""
+        """Return (non_null_rows, distinct_count) for a column.
+        Uses COUNT(col) so NULLs are excluded from both counts — prevents
+        mostly-NULL columns from getting inflated ratios.
+        """
         try:
             result = sql_executor.execute_query(
-                f"SELECT COUNT(*) as total, COUNT(DISTINCT {col}) as distinct_cnt FROM {table_name}"
+                f"SELECT COUNT({col}) as non_null, COUNT(DISTINCT {col}) as distinct_cnt FROM {table_name}"
             )
             if result['success'] and result.get('data'):
-                total = int(result['data'][0].get('total', 0))
+                non_null = int(result['data'][0].get('non_null', 0))
                 distinct = int(result['data'][0].get('distinct_cnt', 0))
-                return total, distinct
+                return non_null, distinct
         except Exception:
             pass
         return 0, 0
 
-    def _find_best_cat_col(self, table_name: str, cat_cols: List[str], min_distinct: int = 3, max_distinct: int = 20):
+    def _find_best_cat_col(self, table_name: str, cat_cols: List[str],
+                           min_distinct: int = 3, max_distinct: int = 25,
+                           min_ratio: float = 2.0, min_non_null: int = 10):
         """
         Pick the categorical column that gives the most interesting distribution.
-        Requires distinct values in [min_distinct, max_distinct] AND total >> distinct
-        (ratio >= 2 means each category appears at least twice on average).
-        Returns (col_name, total, distinct) or (None, 0, 0).
+        Requires:
+          - distinct values in [min_distinct, max_distinct]
+          - at least min_non_null non-null rows
+          - ratio (non_null / distinct) >= min_ratio (each category appears multiple times)
+        Returns (col_name, non_null, distinct) or (None, 0, 0).
+        Falls back to relaxed criteria if nothing passes strict check.
         """
         best = (None, 0, 0)
         best_ratio = 0
         for col in cat_cols:
-            total, distinct = self._get_col_stats(table_name, col)
+            non_null, distinct = self._get_col_stats(table_name, col)
             if distinct < min_distinct or distinct > max_distinct:
                 continue
-            ratio = total / distinct if distinct else 0
+            if non_null < min_non_null:
+                continue
+            ratio = non_null / distinct if distinct else 0
+            if ratio < min_ratio:
+                continue
             if ratio > best_ratio:
                 best_ratio = ratio
-                best = (col, total, distinct)
+                best = (col, non_null, distinct)
+
+        # Relaxed fallback: drop min_ratio requirement
+        if best[0] is None:
+            for col in cat_cols:
+                non_null, distinct = self._get_col_stats(table_name, col)
+                if distinct < min_distinct or distinct > max_distinct:
+                    continue
+                if non_null < min_non_null:
+                    continue
+                ratio = non_null / distinct if distinct else 0
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    best = (col, non_null, distinct)
+
         return best
 
     def _generate_smart_queries(self, schema: Dict[str, Any]) -> List[Dict[str, Any]]:

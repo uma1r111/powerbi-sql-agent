@@ -19,6 +19,9 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
     // Container width for GridLayout
     const [gridWidth, setGridWidth] = useState(800);
     const observerRef = useRef(null);
+    // Use a ref so the event listener always calls the latest refreshFromCurrent
+    // without needing to re-register on every render
+    const refreshFromCurrentRef = useRef(null);
 
     useEffect(() => {
         loadDashboard();
@@ -46,7 +49,9 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
     }, []);
 
     useEffect(() => {
-        const handleRefresh = () => loadDashboard();
+        // refreshDashboard: pull current cache (after a new chart was added by a query or restore)
+        // Use the ref so we always invoke the latest function without stale closures
+        const handleRefresh = () => refreshFromCurrentRef.current?.();
         window.addEventListener('refreshDashboard', handleRefresh);
         return () => window.removeEventListener('refreshDashboard', handleRefresh);
     }, []);
@@ -56,9 +61,9 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
             setLoading(true);
             setError(null);
             setActiveFilter(null);
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             const response = await fetch(
-                `http://localhost:8000/api/dashboard/current?session_id=${sessionId}`,
+                `http://localhost:8000/api/dashboard/initial?session_id=${sessionId}`,
                 { headers: { 'Authorization': `Bearer ${token}` } }
             );
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -77,6 +82,29 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
         }
     };
 
+    // Pull the cached dashboard without regenerating it (used after adding/restoring charts)
+    // Keep the ref in sync so the stable event listener always calls the latest version
+    refreshFromCurrentRef.current = async () => {
+        try {
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(
+                `http://localhost:8000/api/dashboard/current?session_id=${sessionId}`,
+                { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+            if (!response.ok) return;
+            const data = await response.json();
+            if (data.dashboard?.charts?.length) {
+                const filteredCharts = data.dashboard.charts.filter(
+                    chart => !removedChartIds.has(chart.chart_id)
+                );
+                setDashboard({ ...data.dashboard, charts: filteredCharts });
+                if (onChartsLoaded && filteredCharts.length > 0) onChartsLoaded(filteredCharts);
+            }
+        } catch (err) {
+            console.error('Failed to refresh dashboard from current:', err);
+        }
+    };
+
     const refreshDashboard = async () => {
         setRefreshing(true);
         await loadDashboard();
@@ -91,7 +119,7 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
                 charts: prev.charts.filter(c => c.chart_id !== chartId)
             }));
             if (activeFilter?.sourceChartId === chartId) setActiveFilter(null);
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             await fetch('http://localhost:8000/api/dashboard/remove-chart', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -116,7 +144,7 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
     const clearFilters = async () => {
         setActiveFilter(null);
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             const response = await fetch(
                 `http://localhost:8000/api/dashboard/clear-filters?session_id=${sessionId}`,
                 { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }

@@ -208,16 +208,21 @@ class ChartRecommender:
                 category_col = col
                 break
         
-        # Find value column (usually second column or numeric)
-        value_col = columns[1] if len(columns) > 1 else columns[0]
+        # Find value column — must be a different column AND numeric
+        value_col = None
         for col in columns:
             if col != category_col and self._is_numeric_column(col, data):
                 value_col = col
                 break
-        
+
+        # No numeric column found — fall back to table so the data is still useful
+        if value_col is None:
+            config['type'] = 'table'
+            return self._config_table(data, columns, config)
+
         # Determine if horizontal (for rankings like "top 10")
         is_horizontal = 'top' in query.lower() or 'bottom' in query.lower() or 'ranking' in query.lower()
-        
+
         config['config'] = {
             'xAxis': value_col if is_horizontal else category_col,
             'yAxis': category_col if is_horizontal else value_col,
@@ -226,7 +231,7 @@ class ChartRecommender:
             'color': '#3b82f6',
             'horizontal': is_horizontal
         }
-        
+
         return config
     
     def _config_pie(self, data: List[Dict], columns: List[str], config: Dict) -> Dict:

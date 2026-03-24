@@ -306,16 +306,27 @@ async def process_query(
             "topic": topic
         }
         
-        # Extract response text
+        # Extract response text — only use AI messages, not the user's own query
         response_text = ""
-        if result.messages and len(result.messages) > 0:
-            last_message = result.messages[-1]
-            if hasattr(last_message, 'content'):
-                response_text = last_message.content
-            elif isinstance(last_message, dict):
-                response_text = last_message.get('content', '')
+        for msg in reversed(result.messages or []):
+            msg_type = getattr(msg, 'type', None) or (msg.get('type') if isinstance(msg, dict) else None)
+            if msg_type in ('ai', 'AIMessage') or (hasattr(msg, '__class__') and 'AI' in msg.__class__.__name__):
+                response_text = msg.content if hasattr(msg, 'content') else msg.get('content', '')
+                break
+
+        # If agent exited early (error path) with no AI message, build a user-friendly error
+        if not response_text or not result.processing_complete:
+            if result.errors:
+                last_err = result.errors[-1]
+                # Strip internal prefixes that aren't user-friendly
+                if last_err.startswith("Workflow execution failed:") or last_err.startswith("Query validation error:"):
+                    response_text = "I was unable to process your query due to an internal error. Please try rephrasing your question."
+                else:
+                    response_text = last_err
+            elif not result.execution_successful:
+                response_text = "I was unable to retrieve results for that query. Please try rephrasing or simplifying your question."
             else:
-                response_text = str(last_message)
+                response_text = "Query processed successfully."
         
         # Extract SQL
         sql_query = None

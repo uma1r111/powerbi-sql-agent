@@ -4,6 +4,8 @@ import psycopg2
 import json
 import logging
 import re
+import decimal
+from datetime import date, datetime, time
 from typing import Dict, List, Any, Optional
 from database.connection import get_db_connection
 from tools.error_manager import error_manager
@@ -42,10 +44,18 @@ class SQLExecutorTool:
                 results = cursor.fetchall()
                 column_names = [desc[0] for desc in cursor.description]
                 
-                # Format as list of dictionaries
+                # Format as list of dictionaries, converting all values to
+                # JSON-serializable Python types (Decimal → float, date → str, etc.)
                 formatted_results = []
                 for row in results:
-                    formatted_results.append(dict(zip(column_names, row)))
+                    row_dict = {}
+                    for col_name, val in zip(column_names, row):
+                        if isinstance(val, decimal.Decimal):
+                            val = float(val)
+                        elif isinstance(val, (datetime, date, time)):
+                            val = val.isoformat()
+                        row_dict[col_name] = val
+                    formatted_results.append(row_dict)
                 
                 response = {
                     "success": True,
@@ -103,11 +113,11 @@ class SQLExecutorTool:
                 "row_count": 0,
                 "column_names": None,
                 "error": str(db_error),
-                "error_type": error_detail.error_type.code,  # NEW
-                "error_category": error_detail.error_type.category,  # NEW
-                "error_severity": error_detail.error_type.severity,  # NEW
-                "error_detail": error_detail,  # NEW
-                "user_message": user_message,  # NEW
+                "error_type": error_detail.error_type.code,
+                "error_category": error_detail.error_type.category,
+                "error_severity": error_detail.error_type.severity,
+                "error_detail": error_detail.to_dict(),
+                "user_message": user_message,
                 "message": user_message
             }
             
@@ -131,7 +141,7 @@ class SQLExecutorTool:
                 "column_names": None,
                 "error": str(e),
                 "error_type": "UNKNOWN",
-                "error_detail": error_detail,  # NEW
+                "error_detail": error_detail.to_dict(),
                 "message": f"Unexpected error: {e}"
             }
 

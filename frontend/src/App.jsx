@@ -19,8 +19,8 @@ const LoginPage = ({ onLogin }) => {
     setError('');
     try {
       const response = await axios.post(`${API_URL}/login`, { email, password });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      sessionStorage.setItem('token', response.data.token);
+      sessionStorage.setItem('user', JSON.stringify(response.data.user));
       onLogin(response.data.user);
     } catch (err) {
       setError('Invalid credentials.');
@@ -124,7 +124,7 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
     setInput('');
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const response = await axios.post(
         `${API_URL}/query`,
         { question: queryText, session_id: sessionId || 'default' },
@@ -159,9 +159,13 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
       }
 
     } catch (error) {
+      const detail = error.response?.data?.detail;
+      const errMsg = typeof detail === 'string'
+        ? detail
+        : 'Something went wrong. Please try again or rephrase your question.';
       setMessages(prev => [
         ...prev,
-        { type: 'error', content: error.response?.data?.detail || 'Query failed.', timestamp: new Date() }
+        { type: 'error', content: errMsg, timestamp: new Date() }
       ]);
     } finally {
       setLoading(false);
@@ -195,11 +199,21 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
               className={`max-w-[92%] rounded-lg px-3 py-2 text-sm ${msg.type === 'user'
                   ? 'bg-blue-600 text-white'
                   : msg.type === 'error'
-                    ? 'bg-red-50 border border-red-200 text-red-700'
+                    ? 'bg-red-50 border border-red-200 text-red-800'
                     : 'bg-gray-50 border border-gray-200 text-gray-800'
                 }`}
             >
-              <p>{msg.content}</p>
+              {msg.type === 'error' ? (
+                <div className="flex items-start gap-2">
+                  <span className="text-red-500 mt-0.5 shrink-0">⚠</span>
+                  <div>
+                    <p className="font-semibold text-red-700 text-xs mb-0.5">Unable to process query</p>
+                    <p className="text-red-600">{msg.content}</p>
+                  </div>
+                </div>
+              ) : (
+                <p>{msg.content}</p>
+              )}
 
               {msg.results && msg.results.length > 0 && (
                 <div className="mt-2 overflow-x-auto">
@@ -698,14 +712,29 @@ const Dashboard = ({ user, onLogout }) => {
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          {activeNav === 'history' ? (
+          {activeNav === 'history' && (
             <HistoryTab messages={activeConv?.messages || []} onClickQuery={handleHistoryClick} />
-          ) : activeNav === 'visualizations' ? (
+          )}
+          {activeNav === 'visualizations' && (
             <VisualizationHistory
               charts={activeConv?.charts || []}
-              onRestoreChart={(chart) => {
-                console.log('Restoring chart to dashboard:', chart.title);
-                window.dispatchEvent(new CustomEvent('refreshDashboard'));
+              onRestoreChart={async (chart) => {
+                try {
+                  const token = sessionStorage.getItem('token');
+                  await fetch(`${API_URL}/dashboard/add-chart`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      session_id: `session-${activeConvId}`,
+                      query: chart.query || chart.title || '',
+                      sql: '',
+                      result: { success: true, data: chart.data || [] }
+                    })
+                  });
+                  window.dispatchEvent(new CustomEvent('refreshDashboard'));
+                } catch (e) {
+                  console.error('Failed to restore chart to dashboard:', e);
+                }
               }}
               onClearHistory={() => {
                 setConversations(prev => prev.map(conv =>
@@ -713,14 +742,15 @@ const Dashboard = ({ user, onLogout }) => {
                 ));
               }}
             />
-          ) : (
-            <div className="flex-1 overflow-hidden">
-              <DashboardContainer
-                sessionId={`session-${activeConvId}`}
-                onChartsLoaded={handleChartsLoaded}
-              />
-            </div>
           )}
+          {/* DashboardContainer stays mounted across tab switches so it can receive
+              refreshDashboard events dispatched from the Visualizations tab */}
+          <div className={`flex-1 overflow-hidden${activeNav === 'dashboard' ? '' : ' hidden'}`}>
+            <DashboardContainer
+              sessionId={`session-${activeConvId}`}
+              onChartsLoaded={handleChartsLoaded}
+            />
+          </div>
 
           <div className="w-96 shrink-0 p-4 overflow-hidden">
             <ChatPanel
@@ -741,15 +771,15 @@ export default function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
+    const savedUser = sessionStorage.getItem('user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
     setUser(null);
   };
 

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import { X, Maximize2, Minimize2, Download, FileText, Image as ImageIcon } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 import KPICard from './ChartTypes/KPICard';
 import BarChartComponent from './ChartTypes/BarChartComponent';
 import LineChartComponent from './ChartTypes/LineChartComponent';
@@ -20,26 +20,24 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove }) => {
     // Is there an active filter from a different chart?
     const isFiltered = !!(activeFilter && !isSource);
 
-    // For non-source charts: filter data to matching rows only
-    const displayChart = useMemo(() => {
-        if (!activeFilter || isSource || !chart.data?.length) return chart;
-        const filtered = chart.data.filter(row =>
-            Object.entries(row).some(([k, v]) =>
-                k.toLowerCase() === activeFilter.key.toLowerCase() &&
-                String(v) === String(activeFilter.value)
-            )
-        );
-        // If no rows match the filter key exists in this chart's data — don't filter
-        const hasKey = chart.data.some(row =>
+    // Does this chart's data contain the filter key column?
+    const hasMatchingKey = useMemo(() => {
+        if (!activeFilter || !chart.data?.length) return false;
+        return chart.data.some(row =>
             Object.keys(row).some(k => k.toLowerCase() === activeFilter.key.toLowerCase())
         );
-        if (!hasKey) return chart;
-        return filtered.length > 0 ? { ...chart, data: filtered } : chart;
-    }, [activeFilter, chart, isSource]);
+    }, [activeFilter, chart.data]);
 
-    // Selection state passed to chart components (only the source chart gets this)
-    const selectedKey = isSource ? activeFilter.key : null;
-    const selectedValue = isSource ? String(activeFilter.value) : null;
+    // Power BI style: pass selectedKey/selectedValue to ANY chart that shares the filter
+    // column — that chart's component handles dimming non-selected elements.
+    // Charts that don't share the column are unaffected (null passed → no visual change).
+    const selectedKey = (activeFilter && hasMatchingKey) ? activeFilter.key : null;
+    const selectedValue = (activeFilter && hasMatchingKey) ? String(activeFilter.value) : null;
+
+    // displayChart is always the full dataset — dimming is done visually inside each
+    // chart component, not by removing rows.
+    const displayChart = chart;
+
     const onSelect = (key, value) => onFilterSelect?.(chart.chart_id, key, value);
 
     const renderChart = (chartData = displayChart) => {
@@ -54,7 +52,7 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove }) => {
             case 'pie':
                 return <PieChartComponent chart={chartData} selectedKey={selectedKey} selectedValue={selectedValue} onSelect={onSelect} />;
             case 'table':
-                return <DataTable chart={chartData} />;
+                return <DataTable chart={chartData} selectedKey={selectedKey} selectedValue={selectedValue} onSelect={onSelect} />;
             default:
                 return (
                     <div className="h-full flex items-center justify-center text-gray-500">
@@ -103,71 +101,18 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove }) => {
             setIsCapturing(true);
             await new Promise(resolve => setTimeout(resolve, 150));
 
-            const element = chartRef.current;
-            const svgEl = element.querySelector('svg');
+            const dataUrl = await toPng(chartRef.current, {
+                backgroundColor: '#ffffff',
+                pixelRatio: 2,
+            });
 
-            const triggerDownload = (blob) => {
-                if (!blob) { alert('Failed to generate image'); return; }
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${chart.title.replace(/[^a-z0-9]/gi, '_')}.png`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                console.log('✅ Chart downloaded as image');
-            };
-
-            if (svgEl) {
-                // Recharts renders SVG — html2canvas can't handle it.
-                // Serialize the SVG and draw it onto a canvas instead.
-                const rect = element.getBoundingClientRect();
-                const svgRect = svgEl.getBoundingClientRect();
-                const scale = 2;
-
-                const svgClone = svgEl.cloneNode(true);
-                svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-                svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-                svgClone.setAttribute('width', svgRect.width);
-                svgClone.setAttribute('height', svgRect.height);
-
-                const svgStr = new XMLSerializer().serializeToString(svgClone);
-                const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-                const svgUrl = URL.createObjectURL(svgBlob);
-
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = rect.width * scale;
-                    canvas.height = rect.height * scale;
-                    const ctx = canvas.getContext('2d');
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.fillStyle = '#111827';
-                    ctx.font = `bold ${14 * scale}px "Segoe UI", system-ui, sans-serif`;
-                    ctx.fillText(chart.title, 16 * scale, 28 * scale);
-                    const offsetX = (svgRect.left - rect.left) * scale;
-                    const offsetY = (svgRect.top - rect.top) * scale;
-                    ctx.drawImage(img, offsetX, offsetY, svgRect.width * scale, svgRect.height * scale);
-                    URL.revokeObjectURL(svgUrl);
-                    setIsCapturing(false);
-                    canvas.toBlob(triggerDownload, 'image/png');
-                };
-                img.onerror = () => {
-                    URL.revokeObjectURL(svgUrl);
-                    setIsCapturing(false);
-                    alert('Failed to generate image');
-                };
-                img.src = svgUrl;
-            } else {
-                // KPI card — no SVG, html2canvas works fine
-                const canvas = await html2canvas(element, {
-                    backgroundColor: '#ffffff', scale: 2, logging: false, useCORS: true, allowTaint: true,
-                });
-                setIsCapturing(false);
-                canvas.toBlob(triggerDownload, 'image/png');
-            }
+            setIsCapturing(false);
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = `${chart.title.replace(/[^a-z0-9]/gi, '_')}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         } catch (error) {
             console.error('❌ Image download error:', error);
             setIsCapturing(false);
@@ -177,10 +122,10 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove }) => {
 
     const toggleMaximize = () => setIsMaximized(!isMaximized);
 
-    // Border/ring style: blue if source (filtering others), gray-blue if being filtered
+    // Border: blue ring on source chart; light ring on charts that share the filter column
     const cardBorderClass = isSource
         ? 'ring-2 ring-blue-500'
-        : isFiltered
+        : (isFiltered && hasMatchingKey)
             ? 'ring-1 ring-blue-200'
             : '';
 
@@ -200,9 +145,9 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove }) => {
                                 filtering
                             </span>
                         )}
-                        {isFiltered && displayChart.data?.length !== chart.data?.length && (
-                            <span className="shrink-0 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
-                                {displayChart.data?.length} / {chart.data?.length}
+                        {isFiltered && hasMatchingKey && (
+                            <span className="shrink-0 text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
+                                filtered
                             </span>
                         )}
                     </div>
@@ -250,11 +195,9 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove }) => {
 
                 {chart.type !== 'kpi' && chart.data && !isCapturing && (
                     <div className="px-4 py-2 border-t border-gray-100 text-xs text-gray-400 shrink-0">
-                        {displayChart.data?.length ?? chart.data.length} {chart.data.length === 1 ? 'row' : 'rows'}
-                        {activeFilter && !isSource && (
-                            <span className="ml-1 text-blue-500">
-                                (filtered from {chart.data.length})
-                            </span>
+                        {chart.data.length} {chart.data.length === 1 ? 'row' : 'rows'}
+                        {activeFilter && hasMatchingKey && !isSource && (
+                            <span className="ml-1 text-blue-500">• filtered</span>
                         )}
                     </div>
                 )}

@@ -23,7 +23,7 @@ const LineChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => 
         onSelect(xAxis, d[xAxis]);
     };
 
-    // Custom dot: highlight selected, dim others
+    // Custom dot: highlight selected, dim others; also directly clickable
     const renderDot = (props) => {
         const { cx, cy, payload } = props;
         const isSelected = hasSelection && String(payload[xAxis]) === selectedValue;
@@ -39,6 +39,10 @@ const LineChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => 
                 strokeWidth={isSelected ? 2 : 0}
                 opacity={isDimmed ? 0.2 : 1}
                 style={{ cursor: isSelectable ? 'pointer' : 'default' }}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    if (isSelectable) onSelect(xAxis, payload[xAxis]);
+                }}
             />
         );
     };

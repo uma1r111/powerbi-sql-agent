@@ -38,26 +38,66 @@ class QueryValidatorTool:
             'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'DISTINCT', 'AS'
         }
     
+    def _fix_broken_cte(self, sql: str) -> str:
+        """
+        Detect and auto-repair CTEs where the LLM forgot the opening
+        'WITH FirstCTEName AS (' prefix.
+
+        Pattern produced by the LLM:
+            SELECT ... GROUP BY ... ), SecondCTE AS ( ... ) SELECT ...
+        What it should be:
+            WITH FirstCTE AS ( SELECT ... GROUP BY ... ), SecondCTE AS ( ... ) SELECT ...
+
+        The first CTE name is inferred from the FROM clause of the second CTE.
+        """
+        sql_stripped = sql.strip()
+        if not sql_stripped.upper().startswith('SELECT'):
+            return sql
+
+        # Look for the broken "), CTEName AS (" junction
+        cte_junction = re.compile(r'\)\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s+AS\s*\(', re.IGNORECASE)
+        match = cte_junction.search(sql_stripped)
+        if not match:
+            return sql
+
+        first_junction = match.start()  # position of the ')' that closes the missing CTE
+        after_junction = match.end()    # position after 'AS ('
+
+        # Find the first CTE's name by looking for FROM <name> inside the second CTE body
+        remaining = sql_stripped[after_junction:]
+        from_match = re.search(r'\bFROM\s+([A-Za-z_][A-Za-z0-9_]*)', remaining, re.IGNORECASE)
+        if not from_match:
+            return sql  # Can't determine the first CTE name — leave as-is
+
+        first_cte_name = from_match.group(1)
+
+        # Reconstruct: WITH FirstCTEName AS (<original SELECT>)<rest of CTEs> SELECT ...
+        first_select = sql_stripped[:first_junction]
+        rest = sql_stripped[first_junction:]          # starts with "),  ..."
+        return f"WITH {first_cte_name} AS ({first_select}{rest}"
+
     def validate_query(self, sql_query: str, schema_context: Optional[Dict] = None) -> Dict[str, Any]:
         """
-        Comprehensive query validation with enhanced error classification
-        
-        Args:
-            sql_query: The SQL query to validate
-            schema_context: Optional schema context for enhanced validation
-            
+        Comprehensive query validation with enhanced error classification.
+        Auto-repairs common LLM SQL mistakes (e.g. missing WITH in CTEs)
+        before running checks.
+
         Returns:
-            Dict containing validation results with detailed error information
+            Dict containing validation results.  'query' holds the
+            (possibly repaired) SQL that should be executed.
         """
+        # Auto-repair common LLM mistakes before validating
+        sql_query = self._fix_broken_cte(sql_query.strip())
+
         results = {
             "success": True,
             "errors": [],
             "warnings": [],
             "suggestions": [],
-            "query": sql_query.strip(),
+            "query": sql_query,   # may be the repaired version
             "is_safe": True,
             "estimated_complexity": "low",
-            "error_details": []  # NEW: Detailed error objects
+            "error_details": []   # stored as plain dicts, not ErrorDetail objects
         }
         
         # Run all validation checks (existing methods)
@@ -80,7 +120,7 @@ class QueryValidatorTool:
                     "validation_stage": "pre_execution"
                 }
             )
-            results["error_details"].append(error_detail)
+            results["error_details"].append(error_detail.to_dict())
         
         # Final success determination
         results["success"] = len(results["errors"]) == 0

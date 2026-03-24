@@ -174,7 +174,7 @@ const VisualizationHistory = ({ charts, onRestoreChart, onClearHistory }) => {
                             </div>
 
                             {/* Modal Content */}
-                            <div className="flex-1 p-6 overflow-auto">
+                            <div className="flex-1 min-h-0 overflow-hidden p-6">
                                 <ChartCard chart={selectedChart} />
                             </div>
                         </div>

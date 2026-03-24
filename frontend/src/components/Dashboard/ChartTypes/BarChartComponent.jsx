@@ -18,6 +18,40 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
     const isSelectable = !!onSelect;
     const hasSelection = !!selectedValue;
 
+    // If the value column has no numeric data the bar chart can't render meaningful bars.
+    // Fall back to a plain table so the data is still visible.
+    const valueCol = isHorizontal ? xAxis : yAxis;
+    const hasNumericData = data.some(row => typeof row[valueCol] === 'number' && !isNaN(row[valueCol]));
+    if (!hasNumericData) {
+        const cols = Object.keys(data[0]);
+        return (
+            <div className="h-full overflow-auto">
+                <table className="w-full text-sm border-collapse">
+                    <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                            {cols.map(col => (
+                                <th key={col} className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase border-b border-gray-200">
+                                    {col.replace(/_/g, ' ')}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {data.map((row, i) => (
+                            <tr key={i} className="hover:bg-gray-50">
+                                {cols.map(col => (
+                                    <td key={col} className="px-3 py-2 text-gray-800 whitespace-nowrap">
+                                        {row[col] ?? '—'}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    }
+
     // Determine the "label key" for this chart's bars
     const barLabelKey = isHorizontal ? yAxis : xAxis;
 
@@ -63,8 +97,6 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
                     data={data}
                     layout="vertical"
                     margin={{ top: 10, right: 30, left: 100, bottom: 10 }}
-                    onClick={(e) => e?.activePayload && handleClick(e.activePayload[0].payload)}
-                    style={{ cursor: isSelectable ? 'pointer' : 'default' }}
                 >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis type="number" stroke="#6b7280" />
@@ -76,7 +108,12 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
                         style={{ fontSize: '12px' }}
                     />
                     <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey={xAxis} radius={[0, 4, 4, 0]}>
+                    <Bar
+                        dataKey={xAxis}
+                        radius={[0, 4, 4, 0]}
+                        onClick={(barData) => handleClick(barData)}
+                        style={{ cursor: isSelectable ? 'pointer' : 'default' }}
+                    >
                         {data.map((entry, index) => (
                             <Cell
                                 key={`cell-${index}`}
@@ -92,8 +129,6 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
                 <BarChart
                     data={data}
                     margin={{ top: 10, right: 30, left: 20, bottom: 50 }}
-                    onClick={(e) => e?.activePayload && handleClick(e.activePayload[0].payload)}
-                    style={{ cursor: isSelectable ? 'pointer' : 'default' }}
                 >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis
@@ -106,7 +141,13 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
                     />
                     <YAxis stroke="#6b7280" />
                     <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey={yAxis} fill={color} radius={[4, 4, 0, 0]}>
+                    <Bar
+                        dataKey={yAxis}
+                        fill={color}
+                        radius={[4, 4, 0, 0]}
+                        onClick={(barData) => handleClick(barData)}
+                        style={{ cursor: isSelectable ? 'pointer' : 'default' }}
+                    >
                         {data.map((entry, index) => (
                             <Cell
                                 key={`cell-${index}`}

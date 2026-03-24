@@ -171,20 +171,22 @@ class QueryValidatorNode:
                 database_check=True
             )
             
+            # Use repaired SQL (CTE fix may have changed it)
+            repaired_sql = validation_result.get("syntax_validation", {}).get("query")
+            if repaired_sql and repaired_sql != agent_state.cleaned_sql:
+                logger.info("CTE auto-repair applied; updating cleaned_sql")
+                agent_state.cleaned_sql = repaired_sql
+
             agent_state.validation_results = validation_result
             agent_state.validation_passed = validation_result["success"]
-            
-            if not validation_result["success"] and "error_details" in validation_result:
-                for error_detail in validation_result["error_details"]:
-                    error_info = {
-                        "code": error_detail.error_type.code,
-                        "category": error_detail.error_type.category,
-                        "severity": error_detail.error_type.severity,
-                        "user_message": error_detail.get_user_message(),
-                        "retryable": error_detail.error_type.retryable
-                    }
-                    agent_state.add_error(error_detail.get_user_message())
-                    logger.error(f"Validation error: {error_info}")
+
+            if not validation_result["success"]:
+                # error_details are plain dicts (not ErrorDetail objects)
+                syntax_errors = validation_result.get("syntax_validation", {}).get("error_details", [])
+                for err in syntax_errors:
+                    msg = err.get("user_message") or err.get("message") or "Validation failed"
+                    agent_state.add_error(msg)
+                    logger.error(f"Validation error: {err}")
             
             if not validation_result["success"]:
                 agent_state.needs_correction = True
@@ -224,18 +226,14 @@ class SQLExecutorNode:
                 logger.info(f"Query executed successfully. Returned {agent_state.result_count} rows")
                 agent_state.update_conversation_context(agent_state.execution_results)
             else:
+                # error_detail is now a plain dict
                 error_detail = execution_result.get("error_detail")
-                
-                if error_detail:
-                    user_message = execution_result.get("user_message", execution_result.get("error"))
-                    agent_state.add_error(user_message)
-                    logger.error(f"Execution error: {error_detail.to_dict()}")
-                    
-                    if error_detail.error_type.retryable:
-                        agent_state.needs_correction = True
-                        agent_state.correction_attempts += 1
-                else:
-                    agent_state.add_error(f"Query execution failed: {execution_result.get('error', 'Unknown error')}")
+                user_message = execution_result.get("user_message") or execution_result.get("error", "Unknown error")
+                agent_state.add_error(user_message)
+                logger.error(f"Execution error: {error_detail}")
+
+                retryable = (error_detail or {}).get("retryable", True)
+                if retryable:
                     agent_state.needs_correction = True
                     agent_state.correction_attempts += 1
             
