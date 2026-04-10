@@ -31,8 +31,19 @@ class SQLExecutorTool:
             # Add LIMIT if not present and it's a SELECT query
             if query.strip().upper().startswith('SELECT') and 'LIMIT' not in query.upper():
                 query = f"{query.rstrip(';')} LIMIT {limit};"
-            
+
             conn = get_db_connection()
+            if conn is None:
+                return {
+                    "success": False,
+                    "query": query,
+                    "data": None,
+                    "row_count": 0,
+                    "column_names": None,
+                    "error": "Database connection failed",
+                    "error_type": "CONNECTION_ERROR",
+                    "message": "Could not connect to the database. Please check that PostgreSQL is running."
+                }
             cursor = conn.cursor()
             
             logger.info(f"Executing query: {query}")
@@ -247,8 +258,10 @@ class DatabaseInfoTool:
         """
         try:
             conn = get_db_connection()
+            if conn is None:
+                return {"success": False, "message": "Database connection failed"}
             cursor = conn.cursor()
-            
+
             # Get column information
             cursor.execute("""
                 SELECT column_name, data_type, is_nullable, column_default
@@ -304,12 +317,14 @@ class DatabaseInfoTool:
         """
         try:
             conn = get_db_connection()
+            if conn is None:
+                return []
             cursor = conn.cursor()
-            
+
             cursor.execute("""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
                 ORDER BY table_name;
             """)
             
