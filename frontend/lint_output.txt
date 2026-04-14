@@ -1,0 +1,176 @@
+﻿
+> frontend@0.0.0 lint
+> eslint .
+
+
+C:\Users\Sameed\Desktop\Agent\powerbi-sql-agent\frontend\src\App.jsx
+   25:14  error  'err' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             no-unused-vars
+  746:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  744 |     const savedUser = localStorage.getItem('user');
+  745 |     if (savedUser) {
+> 746 |       setUser(JSON.parse(savedUser));
+      |       ^^^^^^^ Avoid calling setState() directly within an effect
+  747 |     }
+  748 |   }, []);
+  749 |  react-hooks/set-state-in-effect
+
+C:\Users\Sameed\Desktop\Agent\powerbi-sql-agent\frontend\src\components\Dashboard\ChartTypes\BarChartComponent.jsx
+  54:40  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  52 |                         style={{ fontSize: '12px' }}
+  53 |                     />
+> 54 |                     <Tooltip content={<CustomTooltip />} />
+     |                                        ^^^^^^^^^^^^^ This component is created during render
+  55 |                     <Bar dataKey={xAxis} radius={[0, 4, 4, 0]}>
+  56 |                         {data.map((entry, index) => (
+  57 |                             <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+
+  17 |     ];
+  18 |
+> 19 |     const CustomTooltip = ({ active, payload }) => {
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 20 |         if (active && payload && payload.length) {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 21 |             const data = payload[0].payload;
+     ÔÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 38 |         return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 39 |     };
+     | ^^^^^^ The component is created during render here
+  40 |
+  41 |     return (
+  42 |         <ResponsiveContainer width="100%" height="100%">         react-hooks/static-components
+  73:40  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  71 |                     />
+  72 |                     <YAxis stroke="#6b7280" />
+> 73 |                     <Tooltip content={<CustomTooltip />} />
+     |                                        ^^^^^^^^^^^^^ This component is created during render
+  74 |                     <Bar dataKey={yAxis} fill={color} radius={[4, 4, 0, 0]}>
+  75 |                         {data.map((entry, index) => (
+  76 |                             <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+
+  17 |     ];
+  18 |
+> 19 |     const CustomTooltip = ({ active, payload }) => {
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 20 |         if (active && payload && payload.length) {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 21 |             const data = payload[0].payload;
+     ÔÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 38 |         return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 39 |     };
+     | ^^^^^^ The component is created during render here
+  40 |
+  41 |     return (
+  42 |         <ResponsiveContainer width="100%" height="100%">  react-hooks/static-components
+
+C:\Users\Sameed\Desktop\Agent\powerbi-sql-agent\frontend\src\components\Dashboard\ChartTypes\LineChartComponent.jsx
+  57:40  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  55 |                     />
+  56 |                     <YAxis stroke="#6b7280" />
+> 57 |                     <Tooltip content={<CustomTooltip />} />
+     |                                        ^^^^^^^^^^^^^ This component is created during render
+  58 |                     <Area
+  59 |                         type={curved ? "monotone" : "linear"}
+  60 |                         dataKey={yAxis}
+
+  15 |     const isArea = chart.type === 'area';
+  16 |
+> 17 |     const CustomTooltip = ({ active, payload }) => {
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 18 |         if (active && payload && payload.length) {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 19 |             const data = payload[0].payload;
+     ÔÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 34 |         return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 35 |     };
+     | ^^^^^^ The component is created during render here
+  36 |
+  37 |     return (
+  38 |         <ResponsiveContainer width="100%" height="100%">  react-hooks/static-components
+  78:40  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  76 |                     />
+  77 |                     <YAxis stroke="#6b7280" />
+> 78 |                     <Tooltip content={<CustomTooltip />} />
+     |                                        ^^^^^^^^^^^^^ This component is created during render
+  79 |                     <Line
+  80 |                         type={curved ? "monotone" : "linear"}
+  81 |                         dataKey={yAxis}
+
+  15 |     const isArea = chart.type === 'area';
+  16 |
+> 17 |     const CustomTooltip = ({ active, payload }) => {
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 18 |         if (active && payload && payload.length) {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 19 |             const data = payload[0].payload;
+     ÔÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 34 |         return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 35 |     };
+     | ^^^^^^ The component is created during render here
+  36 |
+  37 |     return (
+  38 |         <ResponsiveContainer width="100%" height="100%">  react-hooks/static-components
+
+C:\Users\Sameed\Desktop\Agent\powerbi-sql-agent\frontend\src\components\Dashboard\ChartTypes\PieChartComponent.jsx
+  117:36  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  115 |                     ))}
+  116 |                 </Pie>
+> 117 |                 <Tooltip content={<CustomTooltip />} />
+      |                                    ^^^^^^^^^^^^^ This component is created during render
+  118 |                 <Legend
+  119 |                     verticalAlign="bottom"
+  120 |                     align="center"
+
+  22 |     const total = data.reduce((sum, item) => sum + Number(item[valueKey] || 0), 0);
+  23 |
+> 24 |     const CustomTooltip = ({ active, payload }) => {
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 25 |         if (active && payload && payload.length) {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 26 |             const dataPoint = payload[0];
+     ÔÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 72 |         return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 73 |     };
+     | ^^^^^^ The component is created during render here
+  74 |
+  75 |     const handleClick = (dataPoint, index) => {
+  76 |         if (onSliceClick) {  react-hooks/static-components
+
+C:\Users\Sameed\Desktop\Agent\powerbi-sql-agent\frontend\src\components\Dashboard\DashboardContainer.jsx
+  19:12  error    'layouts' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                           no-unused-vars
+  24:8   warning  React Hook useEffect has a missing dependency: 'loadDashboard'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  34:8   warning  React Hook useEffect has a missing dependency: 'loadDashboard'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+Ô£û 10 problems (8 errors, 2 warnings)
+

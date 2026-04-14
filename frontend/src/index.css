@@ -1,1 +1,50 @@
 @import "tailwindcss";
+
+/* React Grid Layout Styles */
+.react-grid-layout {
+    position: relative;
+    transition: height 200ms ease;
+}
+
+.react-grid-item {
+    transition: all 200ms ease;
+    transition-property: left, top, width, height;
+}
+
+.react-grid-item>.react-resizable-handle {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+}
+
+.react-grid-item>.react-resizable-handle::after {
+    content: "";
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    width: 5px;
+    height: 5px;
+    border-right: 2px solid rgba(0, 0, 0, 0.4);
+    border-bottom: 2px solid rgba(0, 0, 0, 0.4);
+}
+
+.react-grid-item.resizing {
+    transition: none;
+    z-index: 100;
+}
+
+.react-grid-item.react-draggable-dragging {
+    transition: none;
+    z-index: 100;
+    cursor: grabbing !important;
+}
+
+.react-grid-item.react-grid-placeholder {
+    background: #3b82f6;
+    opacity: 0.2;
+    border-radius: 8px;
+}
+
+.dashboard-grid-item {
+    height: 100%;
+}

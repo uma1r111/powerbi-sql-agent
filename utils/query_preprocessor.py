@@ -33,6 +33,15 @@ class QueryPreprocessor:
             "num": "number",
             "#": "number",
             
+            #idk random
+            "vs": "versus",
+            "v": "versus", 
+            "which": "which",
+            "better": "better",
+            "more": "more",
+            "spent": "spent",
+            "spend": "spending",
+
             # Financial
             "rev": "revenue",
             "revs": "revenues",
@@ -131,7 +140,6 @@ class QueryPreprocessor:
             "quantiy": "quantity",
             "seperate": "separate",
             "calender": "calendar",
-            "orderd": "ordered",
             "shiped": "shipped",
             "shippd": "shipped",
             
@@ -199,8 +207,6 @@ class QueryPreprocessor:
         original_query = query
         corrections = []
         
-        logger.info(f"🔍 Preprocessing query: '{query}'")
-        
         # Step 1: Basic cleanup
         query = query.strip()
         
@@ -222,12 +228,6 @@ class QueryPreprocessor:
         # Step 6: Normalize spacing
         query = self._normalize_spacing(query)
         
-        # Log results
-        if query != original_query:
-            logger.info(f"✅ Preprocessed: '{original_query}' → '{query}'")
-            if corrections:
-                logger.info(f"📝 Corrections: {corrections}")
-        
         return query, corrections
     
     def _expand_abbreviations(self, query: str) -> Tuple[str, List[str]]:
@@ -237,14 +237,11 @@ class QueryPreprocessor:
         expanded_words = []
         
         for word in words:
-            # Check lowercase version for abbreviation
             word_lower = word.lower()
-            # Remove punctuation from end
             word_clean = word_lower.rstrip('.,!?;:')
             
             if word_clean in self.abbreviations:
                 expansion = self.abbreviations[word_clean]
-                # Preserve original case style
                 if word.isupper():
                     expansion = expansion.upper()
                 elif word[0].isupper():
@@ -260,10 +257,8 @@ class QueryPreprocessor:
     def _fix_typos(self, query: str) -> Tuple[str, List[str]]:
         """Fix common typos"""
         corrections = []
-        original_query = query
         
         for typo, correction in self.typo_corrections.items():
-            # Case-insensitive replacement
             pattern = re.compile(re.escape(typo), re.IGNORECASE)
             if pattern.search(query):
                 query = pattern.sub(correction, query)
@@ -275,7 +270,6 @@ class QueryPreprocessor:
         """Apply regex pattern replacements"""
         for pattern, replacement in self.pattern_replacements:
             query = re.sub(pattern, replacement, query, flags=re.IGNORECASE)
-        
         return query
     
     def _fuzzy_match_terms(self, query: str) -> Tuple[str, List[str]]:
@@ -287,30 +281,20 @@ class QueryPreprocessor:
         for word in words:
             word_clean = word.lower().rstrip('.,!?;:')
             
-            # Skip very short words or numbers
             if len(word_clean) <= 2 or word_clean.isdigit():
                 matched_words.append(word)
                 continue
             
-            # Check if word is already in vocabulary
             if word_clean in self.domain_vocabulary:
                 matched_words.append(word)
                 continue
             
-            # Try fuzzy matching
-            matches = get_close_matches(
-                word_clean, 
-                self.domain_vocabulary, 
-                n=1, 
-                cutoff=0.8  # 80% similarity threshold
-            )
+            matches = get_close_matches(word_clean, self.domain_vocabulary, n=1, cutoff=0.8)
             
             if matches:
                 best_match = matches[0]
-                # Preserve original case
                 if word[0].isupper():
                     best_match = best_match.capitalize()
-                
                 matched_words.append(best_match)
                 corrections.append(f"'{word}' → '{best_match}' (fuzzy)")
             else:
@@ -320,81 +304,11 @@ class QueryPreprocessor:
     
     def _normalize_spacing(self, query: str) -> str:
         """Normalize whitespace and spacing"""
-        # Replace multiple spaces with single space
         query = re.sub(r'\s+', ' ', query)
-        
-        # Fix spacing around punctuation
         query = re.sub(r'\s+([.,!?;:])', r'\1', query)
         query = re.sub(r'([.,!?;:])\s*', r'\1 ', query)
-        
-        # Remove trailing/leading spaces
-        query = query.strip()
-        
-        return query
-    
-    def add_custom_abbreviation(self, abbr: str, expansion: str):
-        """Add a custom abbreviation at runtime"""
-        self.abbreviations[abbr.lower()] = expansion.lower()
-        logger.info(f"Added custom abbreviation: '{abbr}' → '{expansion}'")
-    
-    def add_custom_vocabulary(self, terms: List[str]):
-        """Add custom domain vocabulary"""
-        self.domain_vocabulary.extend([t.lower() for t in terms])
-        logger.info(f"Added {len(terms)} custom vocabulary terms")
-
-
-class ContextAwarePreprocessor(QueryPreprocessor):
-    """
-    Extended preprocessor that learns from user's query history
-    """
-    
-    def __init__(self):
-        super().__init__()
-        self.user_patterns = {}  # Track user-specific patterns
-        self.query_history = []  # Recent queries
-    
-    def learn_from_query(self, original_query: str, corrected_query: str):
-        """Learn from successful query corrections"""
-        if original_query != corrected_query:
-            # Extract patterns
-            orig_words = set(original_query.lower().split())
-            corr_words = set(corrected_query.lower().split())
-            
-            # Find new words in correction
-            new_words = corr_words - orig_words
-            
-            for word in new_words:
-                if word not in self.domain_vocabulary:
-                    self.domain_vocabulary.append(word)
-            
-            logger.info(f"📚 Learned from query: added {len(new_words)} terms")
-    
-    def add_to_history(self, query: str):
-        """Track query history for context"""
-        self.query_history.append(query.lower())
-        # Keep last 20 queries
-        if len(self.query_history) > 20:
-            self.query_history.pop(0)
-    
-    def get_frequent_terms(self, top_n: int = 10) -> List[str]:
-        """Get most frequently used terms from history"""
-        from collections import Counter
-        
-        all_words = []
-        for query in self.query_history:
-            all_words.extend(query.split())
-        
-        counter = Counter(all_words)
-        # Filter out common stop words
-        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for'}
-        frequent = [(word, count) for word, count in counter.most_common(top_n * 2) 
-                   if word not in stop_words]
-        
-        return [word for word, _ in frequent[:top_n]]
+        return query.strip()
 
 
 # Initialize global preprocessor
-preprocessor = ContextAwarePreprocessor()
-
-# Export
-__all__ = ["QueryPreprocessor", "ContextAwarePreprocessor", "preprocessor"]
+preprocessor = QueryPreprocessor()
