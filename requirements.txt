@@ -12,3 +12,4 @@ pyjwt
 psycopg2-binary
 langchain-chroma
 fastembed
+mcp langchain-mcp-adapters

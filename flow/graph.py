@@ -19,7 +19,8 @@ from nodes.schema_inspector import schema_inspector_node
 from nodes.planner import planner_node
 
 # Import tools for remaining nodes
-from tools.sql_tools import sql_executor
+from client.mcp_client import mcp_client as sql_executor
+#from tools.sql_tools import sql_executor
 from tools.validation_tools import query_validator, validate_complete_query
 
 from tools.error_manager import error_manager
