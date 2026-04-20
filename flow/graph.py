@@ -25,6 +25,8 @@ from tools.validation_tools import query_validator, validate_complete_query
 
 from tools.error_manager import error_manager
 
+from nodes.error_analyzer import error_analyzer_node
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -559,6 +561,8 @@ class PowerBISQLAgent:
         workflow.add_node("query_validator", query_validator_node)
         workflow.add_node("sql_executor", sql_executor_node)
         workflow.add_node("output_formatter", output_formatter_node)
+        workflow.add_node("error_analyzer", error_analyzer_node)
+
         
         from flow.edge import should_continue_to_planner, should_retry_query, should_execute_query
         
@@ -585,10 +589,11 @@ class PowerBISQLAgent:
         workflow.add_conditional_edges(
             "sql_executor",
             should_retry_query,
-            {"success": "output_formatter", "retry": "planner", "error": END}
+            {"success": "output_formatter", "error_analysis": "error_analyzer", "retry": "planner", "error": END}
         )
         
         workflow.add_edge("output_formatter", END)
+        workflow.add_edge("error_analyzer", "planner")
         
         self.graph = workflow.compile(checkpointer=self.memory)
         logger.info("LangGraph workflow built successfully")
