@@ -30,6 +30,9 @@ from utils.query_classifier import classifier
 from tools.dashboard_manager import dashboard_manager
 from tools.chart_recommender import chart_recommender
 
+# Import Redis client
+from database.redis_client import RedisClient
+
 load_dotenv()
 
 # JWT Configuration
@@ -56,11 +59,12 @@ app.add_middleware(
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Session state storage
+# Session state storage — keeps LangGraph AgentState objects in memory
+# (LangChain BaseMessage objects are not JSON-serializable so we keep these here)
 session_states = {}
 
-# Track last query per session for context
-last_query_per_session = {}
+# Redis client singleton — used for last_query_per_session and dashboard state
+redis_client = RedisClient.get_instance()
 
 # User store
 fake_users_db = {
@@ -119,7 +123,7 @@ class QueryResponse(BaseModel):
     error: Optional[str] = None
     execution_time: Optional[float] = None
     timestamp: datetime = datetime.now()
-    chart: Optional[Dict[str, Any]] = None  # New: chart config if applicable
+    chart: Optional[Dict[str, Any]] = None
 
 class ConversationItem(BaseModel):
     id: int
@@ -176,6 +180,27 @@ def get_current_user(username: str = Depends(verify_token)):
         raise HTTPException(status_code=401, detail="User not found")
     return User(**user)
 
+# ------------------------------------------------------------------ #
+#  Redis helpers for last_query_per_session                           #
+# ------------------------------------------------------------------ #
+
+def _get_session_context(session_id: str) -> dict:
+    """
+    Read last query context from Redis.
+    Falls back to empty dict if Redis is down or key doesn't exist.
+    """
+    data = redis_client.get(redis_client.last_query_key(session_id))
+    return data if data is not None else {}
+
+def _save_session_context(session_id: str, query: str, topic: str) -> None:
+    """
+    Persist last query context to Redis so it survives server restarts.
+    """
+    redis_client.set(
+        redis_client.last_query_key(session_id),
+        {"query": query, "topic": topic}
+    )
+
 # Routes
 @app.get("/")
 async def root():
@@ -184,7 +209,8 @@ async def root():
         "version": "1.0.0",
         "status": "running",
         "agent_ready": True,
-        "dashboard_enabled": True
+        "dashboard_enabled": True,
+        "redis": "connected" if redis_client.is_connected else "fallback mode"
     }
 
 @app.post("/api/login", response_model=LoginResponse)
@@ -223,26 +249,25 @@ async def process_query(
     """Process natural language query with preprocessing and context awareness"""
     try:
         start_time = datetime.now()
-        
-        # Get context from last query
-        session_context = last_query_per_session.get(request.session_id, {})
+
+        # Get context from last query — now reads from Redis
+        session_context = _get_session_context(request.session_id)
         last_query = session_context.get("query", "")
         last_topic = session_context.get("topic", "")
-        
+
         # Check if greeting/casual conversation or follow-up
         needs_sql, response_type = classifier.is_sql_query(
-            request.question, 
+            request.question,
             last_query=last_query,
             last_topic=last_topic
         )
-        
+
         if not needs_sql:
-            # Generate conversational response
             response = classifier.generate_response(request.question, response_type)
-            
+
             print(f"\n💬 Non-SQL query detected: {response_type}")
             print(f"   Query: {request.question}")
-            
+
             return QueryResponse(
                 success=True,
                 sql=None,
@@ -253,42 +278,42 @@ async def process_query(
                 execution_time=None,
                 chart=None
             )
-        
+
         # Handle follow-up queries
         processed_query = request.question
         if response_type == 'follow_up':
             processed_query = classifier.expand_follow_up_query(
-                request.question, 
-                last_query, 
+                request.question,
+                last_query,
                 last_topic
             )
             print(f"\n🔗 Context expansion:")
             print(f"   Original: {request.question}")
             print(f"   Expanded: {processed_query}\n")
-        
+
         # Preprocess the SQL query
         preprocessed_query, corrections = preprocessor.preprocess(processed_query)
-        
+
         if corrections:
             print(f"\n📝 Query Preprocessing:")
             print(f"   Original: {processed_query}")
             print(f"   Preprocessed: {preprocessed_query}")
             print(f"   Corrections: {', '.join(corrections)}\n")
-        
+
         existing_state = session_states.get(request.session_id)
-        
+
         # Process SQL query
         print(f"\n🔍 Sending to agent: '{preprocessed_query}'")
-        
+
         result = agent.process_query_sync(
             preprocessed_query,
             session_id=request.session_id,
             existing_state=existing_state
         )
-        
+
         session_states[request.session_id] = result
         execution_time = (datetime.now() - start_time).total_seconds()
-        
+
         # Extract topic
         topic = "general"
         if 'product' in preprocessed_query.lower():
@@ -299,13 +324,10 @@ async def process_query(
             topic = "order"
         elif 'sales' in preprocessed_query.lower() or 'revenue' in preprocessed_query.lower():
             topic = "sales"
-        
-        # Store query as context
-        last_query_per_session[request.session_id] = {
-            "query": preprocessed_query,
-            "topic": topic
-        }
-        
+
+        # Persist query context to Redis — survives server restarts
+        _save_session_context(request.session_id, preprocessed_query, topic)
+
         # Extract response text — only use AI messages, not the user's own query
         response_text = ""
         for msg in reversed(result.messages or []):
@@ -318,7 +340,6 @@ async def process_query(
         if not response_text or not result.processing_complete:
             if result.errors:
                 last_err = result.errors[-1]
-                # Strip internal prefixes that aren't user-friendly
                 if last_err.startswith("Workflow execution failed:") or last_err.startswith("Query validation error:"):
                     response_text = "I was unable to process your query due to an internal error. Please try rephrasing your question."
                 else:
@@ -327,14 +348,14 @@ async def process_query(
                 response_text = "I was unable to retrieve results for that query. Please try rephrasing or simplifying your question."
             else:
                 response_text = "Query processed successfully."
-        
+
         # Extract SQL
         sql_query = None
         if hasattr(result, 'cleaned_sql') and result.cleaned_sql:
             sql_query = result.cleaned_sql
         elif hasattr(result, 'generated_sql') and result.generated_sql:
             sql_query = result.generated_sql
-        
+
         # Extract results
         query_results = []
         if hasattr(result, 'execution_results') and result.execution_results:
@@ -342,32 +363,30 @@ async def process_query(
                 query_results = result.execution_results.get('data', [])
             elif isinstance(result.execution_results, list):
                 query_results = result.execution_results
-        
+
         # Generate chart if results exist
         chart_config = None
         if query_results and len(query_results) > 0 and result.execution_successful:
             try:
-                # Check if query should generate a chart (has visualization keywords)
                 should_visualize = any(keyword in preprocessed_query.lower() for keyword in [
-                    'show', 'chart', 'graph', 'visualize', 'plot', 'compare', 'trend', 
+                    'show', 'chart', 'graph', 'visualize', 'plot', 'compare', 'trend',
                     'top', 'best', 'worst', 'distribution', 'breakdown', 'over time'
                 ])
-                
+
                 if should_visualize or len(query_results) <= 20:
-                    # Generate chart automatically
                     chart_config = dashboard_manager.add_chart_from_query(
                         session_id=request.session_id,
                         query=preprocessed_query,
                         sql=sql_query,
                         result={'success': True, 'data': query_results}
                     )
-                    
+
                     if chart_config:
                         print(f"📊 Chart generated: {chart_config.get('type')} - {chart_config.get('title')}")
-                
+
             except Exception as e:
                 print(f"⚠️ Could not generate chart: {e}")
-        
+
         # Debug logging
         print(f"\n{'='*70}")
         print(f"📊 SQL QUERY DEBUG:")
@@ -388,7 +407,7 @@ async def process_query(
         if result.errors:
             print(f"   Errors: {result.errors}")
         print(f"{'='*70}\n")
-        
+
         return QueryResponse(
             success=True,
             sql=sql_query,
@@ -404,7 +423,7 @@ async def process_query(
         import traceback
         error_trace = traceback.format_exc()
         print(f"❌ Query error: {str(e)}\n{error_trace}")
-        
+
         return QueryResponse(
             success=False,
             sql=None,
@@ -423,30 +442,27 @@ async def get_initial_dashboard(
     session_id: str = "default",
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Generate and return initial dashboard on login
-    Returns 6 default charts with KPIs and visualizations
-    """
+    """Generate and return initial dashboard on login"""
     try:
         print(f"\n🎨 Generating initial dashboard for {current_user.email}")
-        
+
         dashboard = dashboard_manager.generate_initial_dashboard(
             user_email=current_user.email,
             session_id=session_id
         )
-        
+
         print(f"✅ Dashboard generated with {len(dashboard.get('charts', []))} charts")
-        
+
         return {
             "success": True,
             "dashboard": dashboard
         }
-        
+
     except Exception as e:
         import traceback
         print(f"❌ Dashboard generation error: {e}")
         traceback.print_exc()
-        
+
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate dashboard: {str(e)}"
@@ -457,24 +473,21 @@ async def get_current_dashboard(
     session_id: str = "default",
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Get current dashboard state for a session
-    """
+    """Get current dashboard state for a session"""
     try:
         dashboard = dashboard_manager.get_dashboard(session_id)
-        
+
         if not dashboard:
-            # Generate new dashboard if none exists
             dashboard = dashboard_manager.generate_initial_dashboard(
                 user_email=current_user.email,
                 session_id=session_id
             )
-        
+
         return {
             "success": True,
             "dashboard": dashboard
         }
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -486,9 +499,7 @@ async def add_chart_to_dashboard(
     request: AddChartRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Manually add a chart to dashboard from query result
-    """
+    """Manually add a chart to dashboard from query result"""
     try:
         chart = dashboard_manager.add_chart_from_query(
             session_id=request.session_id,
@@ -496,18 +507,18 @@ async def add_chart_to_dashboard(
             sql=request.sql,
             result=request.result
         )
-        
+
         if not chart:
             raise HTTPException(
                 status_code=400,
                 detail="Could not generate chart from query result"
             )
-        
+
         return {
             "success": True,
             "chart": chart
         }
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -519,28 +530,25 @@ async def apply_cross_filter(
     request: CrossFilterRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Apply cross-filter to dashboard
-    Re-queries all charts with the filter applied
-    """
+    """Apply cross-filter to dashboard — re-queries all charts with the filter"""
     try:
         print(f"\n🔗 Applying cross-filter: {request.filter_key} = {request.filter_value}")
-        
+
         updated_dashboard = dashboard_manager.apply_filter(
             session_id=request.session_id,
             filter_key=request.filter_key,
             filter_value=request.filter_value
         )
-        
+
         return {
             "success": True,
             "dashboard": updated_dashboard
         }
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
-        
+
         raise HTTPException(
             status_code=500,
             detail=f"Failed to apply filter: {str(e)}"
@@ -551,17 +559,15 @@ async def clear_all_filters(
     session_id: str,
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Clear all filters from dashboard and refresh
-    """
+    """Clear all filters from dashboard and refresh"""
     try:
         updated_dashboard = dashboard_manager.clear_filters(session_id)
-        
+
         return {
             "success": True,
             "dashboard": updated_dashboard
         }
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -573,26 +579,21 @@ async def remove_chart_from_dashboard(
     request: RemoveChartRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Remove a chart from dashboard
-    """
+    """Remove a chart from dashboard"""
     try:
         success = dashboard_manager.remove_chart(
             session_id=request.session_id,
             chart_id=request.chart_id
         )
-        
+
         if not success:
-            raise HTTPException(
-                status_code=404,
-                detail="Chart not found"
-            )
-        
+            raise HTTPException(status_code=404, detail="Chart not found")
+
         return {
             "success": True,
             "message": "Chart removed successfully"
         }
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -604,27 +605,22 @@ async def update_chart_position(
     request: UpdatePositionRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Update chart position in grid layout
-    """
+    """Update chart position in grid layout"""
     try:
         success = dashboard_manager.update_chart_position(
             session_id=request.session_id,
             chart_id=request.chart_id,
             position=request.position
         )
-        
+
         if not success:
-            raise HTTPException(
-                status_code=404,
-                detail="Chart not found"
-            )
-        
+            raise HTTPException(status_code=404, detail="Chart not found")
+
         return {
             "success": True,
             "message": "Chart position updated"
         }
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -636,17 +632,15 @@ async def clear_dashboard(
     session_id: str,
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Clear all charts from dashboard
-    """
+    """Clear all charts from dashboard"""
     try:
         success = dashboard_manager.clear_dashboard(session_id)
-        
+
         return {
             "success": success,
             "message": "Dashboard cleared" if success else "Dashboard not found"
         }
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -666,12 +660,14 @@ async def get_conversation_history(
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint — includes Redis status"""
     return {
         "status": "healthy",
+        "service": "IntelliQuery API",
         "database": "connected",
         "ai_model": "ready",
-        "dashboard": "enabled"
+        "dashboard": "enabled",
+        "redis": redis_client.get_stats()
     }
 
 if __name__ == "__main__":
@@ -685,5 +681,6 @@ if __name__ == "__main__":
     print("📍 Context Awareness: ENABLED ✅")
     print("📍 Dashboard Manager: ENABLED ✅")
     print("📍 Chart Recommender: ENABLED ✅")
+    print(f"📍 Redis Cache: {'ENABLED ✅' if redis_client.is_connected else 'FALLBACK MODE ⚠️'}")
     print("=" * 70)
     uvicorn.run(app, host="0.0.0.0", port=8000)
