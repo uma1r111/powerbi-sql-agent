@@ -4,6 +4,8 @@ import psycopg2
 import json
 import logging
 import re
+import decimal
+from datetime import date, datetime, time
 from typing import Dict, List, Any, Optional
 from database.connection import get_db_connection
 from tools.error_manager import error_manager
@@ -29,8 +31,19 @@ class SQLExecutorTool:
             # Add LIMIT if not present and it's a SELECT query
             if query.strip().upper().startswith('SELECT') and 'LIMIT' not in query.upper():
                 query = f"{query.rstrip(';')} LIMIT {limit};"
-            
+
             conn = get_db_connection()
+            if conn is None:
+                return {
+                    "success": False,
+                    "query": query,
+                    "data": None,
+                    "row_count": 0,
+                    "column_names": None,
+                    "error": "Database connection failed",
+                    "error_type": "CONNECTION_ERROR",
+                    "message": "Could not connect to the database. Please check that PostgreSQL is running."
+                }
             cursor = conn.cursor()
             
             logger.info(f"Executing query: {query}")
@@ -42,10 +55,18 @@ class SQLExecutorTool:
                 results = cursor.fetchall()
                 column_names = [desc[0] for desc in cursor.description]
                 
-                # Format as list of dictionaries
+                # Format as list of dictionaries, converting all values to
+                # JSON-serializable Python types (Decimal → float, date → str, etc.)
                 formatted_results = []
                 for row in results:
-                    formatted_results.append(dict(zip(column_names, row)))
+                    row_dict = {}
+                    for col_name, val in zip(column_names, row):
+                        if isinstance(val, decimal.Decimal):
+                            val = float(val)
+                        elif isinstance(val, (datetime, date, time)):
+                            val = val.isoformat()
+                        row_dict[col_name] = val
+                    formatted_results.append(row_dict)
                 
                 response = {
                     "success": True,
@@ -103,11 +124,11 @@ class SQLExecutorTool:
                 "row_count": 0,
                 "column_names": None,
                 "error": str(db_error),
-                "error_type": error_detail.error_type.code,  # NEW
-                "error_category": error_detail.error_type.category,  # NEW
-                "error_severity": error_detail.error_type.severity,  # NEW
-                "error_detail": error_detail,  # NEW
-                "user_message": user_message,  # NEW
+                "error_type": error_detail.error_type.code,
+                "error_category": error_detail.error_type.category,
+                "error_severity": error_detail.error_type.severity,
+                "error_detail": error_detail.to_dict(),
+                "user_message": user_message,
                 "message": user_message
             }
             
@@ -131,7 +152,7 @@ class SQLExecutorTool:
                 "column_names": None,
                 "error": str(e),
                 "error_type": "UNKNOWN",
-                "error_detail": error_detail,  # NEW
+                "error_detail": error_detail.to_dict(),
                 "message": f"Unexpected error: {e}"
             }
 
@@ -237,8 +258,10 @@ class DatabaseInfoTool:
         """
         try:
             conn = get_db_connection()
+            if conn is None:
+                return {"success": False, "message": "Database connection failed"}
             cursor = conn.cursor()
-            
+
             # Get column information
             cursor.execute("""
                 SELECT column_name, data_type, is_nullable, column_default
@@ -294,12 +317,14 @@ class DatabaseInfoTool:
         """
         try:
             conn = get_db_connection()
+            if conn is None:
+                return []
             cursor = conn.cursor()
-            
+
             cursor.execute("""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
                 ORDER BY table_name;
             """)
             

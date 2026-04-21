@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, LogOut, MessageSquare, Database, Clock, User, Menu, BarChart2, MessageCircle, Search, Trash2, Plus, Edit2, Check, X } from 'lucide-react';
+import { Send, LogOut, MessageSquare, Database, Clock, User, Menu, BarChart2, MessageCircle, Search, Trash2, Plus, Edit2, Check, X, Code, Copy, ChevronDown, PieChart } from 'lucide-react';
 import axios from 'axios';
+import DashboardContainer from './components/Dashboard/DashboardContainer';
+import VisualizationHistory from './components/VisualizationHistory';
 
 const API_URL = 'http://localhost:8000/api';
 
@@ -17,8 +19,8 @@ const LoginPage = ({ onLogin }) => {
     setError('');
     try {
       const response = await axios.post(`${API_URL}/login`, { email, password });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      sessionStorage.setItem('token', response.data.token);
+      sessionStorage.setItem('user', JSON.stringify(response.data.user));
       onLogin(response.data.user);
     } catch (err) {
       setError('Invalid credentials.');
@@ -80,10 +82,9 @@ const LoginPage = ({ onLogin }) => {
               {['sameed', 'izma', 'umair'].map((name) => (
                 <button
                   key={name}
-                  // This now sets both Email AND Password
-                  onClick={() => { 
-                    setEmail(`${name}@intelliquery.com`); 
-                    setPassword('1111'); 
+                  onClick={() => {
+                    setEmail(`${name}@intelliquery.com`);
+                    setPassword('1234');
                   }}
                   className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg transition-colors capitalize"
                 >
@@ -99,7 +100,7 @@ const LoginPage = ({ onLogin }) => {
 };
 
 // ─── Chat Panel (right side) ─────────────────────────────────────────
-const ChatPanel = ({ messages, setMessages, scrollToIndex }) => {
+const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCreated }) => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
@@ -117,15 +118,16 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex }) => {
 
   const sendQuery = async () => {
     if (!input.trim() || loading) return;
-    const userMsg = { type: 'user', content: input, timestamp: new Date() };
+    const queryText = input;
+    const userMsg = { type: 'user', content: queryText, timestamp: new Date() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const response = await axios.post(
         `${API_URL}/query`,
-        { question: input, session_id: 'default' },
+        { question: queryText, session_id: sessionId || 'default' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const aiMsg = {
@@ -134,13 +136,36 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex }) => {
         sql: response.data.sql,
         results: response.data.results || [],
         execution_time: response.data.execution_time,
+        chart: response.data.chart,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, aiMsg]);
+
+      // Store chart in conversation history
+      if (response.data.chart && onChartCreated) {
+        onChartCreated({
+          ...response.data.chart,
+          query: queryText,
+          created_at: new Date().toISOString()
+        });
+      }
+
+      // Trigger dashboard refresh
+      if (response.data.chart) {
+        console.log('📊 Chart created, triggering dashboard refresh');
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('refreshDashboard'));
+        }, 500);
+      }
+
     } catch (error) {
+      const detail = error.response?.data?.detail;
+      const errMsg = typeof detail === 'string'
+        ? detail
+        : 'Something went wrong. Please try again or rephrase your question.';
       setMessages(prev => [
         ...prev,
-        { type: 'error', content: error.response?.data?.detail || 'Query failed.', timestamp: new Date() }
+        { type: 'error', content: errMsg, timestamp: new Date() }
       ]);
     } finally {
       setLoading(false);
@@ -172,18 +197,22 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex }) => {
           >
             <div
               className={`max-w-[92%] rounded-lg px-3 py-2 text-sm ${msg.type === 'user'
-                ? 'bg-blue-600 text-white'
-                : msg.type === 'error'
-                  ? 'bg-red-50 border border-red-200 text-red-700'
-                  : 'bg-gray-50 border border-gray-200 text-gray-800'
+                  ? 'bg-blue-600 text-white'
+                  : msg.type === 'error'
+                    ? 'bg-red-50 border border-red-200 text-red-800'
+                    : 'bg-gray-50 border border-gray-200 text-gray-800'
                 }`}
             >
-              {(!msg.results || msg.results.length === 0) && <p>{msg.content}</p>}
-
-              {msg.sql && (
-                <div className="mt-2 bg-gray-900 text-green-400 p-2 rounded text-xs overflow-x-auto">
-                  <pre className="whitespace-pre-wrap font-mono">{msg.sql}</pre>
+              {msg.type === 'error' ? (
+                <div className="flex items-start gap-2">
+                  <span className="text-red-500 mt-0.5 shrink-0">⚠</span>
+                  <div>
+                    <p className="font-semibold text-red-700 text-xs mb-0.5">Unable to process query</p>
+                    <p className="text-red-600">{msg.content}</p>
+                  </div>
                 </div>
+              ) : (
+                <p>{msg.content}</p>
               )}
 
               {msg.results && msg.results.length > 0 && (
@@ -213,7 +242,13 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex }) => {
                 </div>
               )}
 
-              {msg.execution_time && (
+              {msg.chart && (
+                <p className="text-xs text-blue-600 mt-2 italic">
+                  📊 Visualization added to dashboard
+                </p>
+              )}
+
+              {msg.execution_time && msg.execution_time > 0 && (
                 <p className="text-xs text-gray-400 mt-1">Executed in {msg.execution_time.toFixed(2)}s</p>
               )}
             </div>
@@ -270,6 +305,7 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex }) => {
 // ─── Conversation History Tab ────────────────────────────────────────
 const HistoryTab = ({ messages, onClickQuery }) => {
   const [search, setSearch] = useState('');
+  const [expandedSql, setExpandedSql] = useState(null);
 
   const queryHistory = messages
     .map((msg, idx) => ({ ...msg, index: idx }))
@@ -277,9 +313,18 @@ const HistoryTab = ({ messages, onClickQuery }) => {
     .filter((msg) => msg.content.toLowerCase().includes(search.toLowerCase()))
     .reverse();
 
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    alert('SQL copied to clipboard!');
+  };
+
+  const toggleSql = (index) => {
+    setExpandedSql(expandedSql === index ? null : index);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         <div className="mb-6">
           <h3 className="text-lg font-bold text-gray-900">Conversation History</h3>
           <p className="text-sm text-gray-400 mt-0.5">All queries in this conversation</p>
@@ -306,43 +351,91 @@ const HistoryTab = ({ messages, onClickQuery }) => {
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {queryHistory.map((msg, i) => {
               const aiResponse = messages[msg.index + 1];
               const hasResults = aiResponse?.results && aiResponse.results.length > 0;
               const timeStr = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const isSqlExpanded = expandedSql === msg.index;
 
               return (
-                <button
+                <div
                   key={msg.index}
-                  onClick={() => onClickQuery(msg.index)}
-                  className="w-full text-left bg-white border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition-all group"
+                  className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
-                          #{queryHistory.length - i}
-                        </span>
-                        <span className="text-xs text-gray-400">{timeStr}</span>
-                        {hasResults && (
-                          <span className="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded-full">
-                            {aiResponse.results.length} rows
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                            #{queryHistory.length - i}
                           </span>
+                          <span className="text-xs text-gray-400">{timeStr}</span>
+                          {hasResults && (
+                            <span className="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded-full">
+                              {aiResponse.results.length} rows
+                            </span>
+                          )}
+                          {aiResponse?.chart && (
+                            <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full">
+                              📊 Chart
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900">{msg.content}</p>
+                      </div>
+                      <button
+                        onClick={() => onClickQuery(msg.index)}
+                        className="text-gray-400 hover:text-blue-500 transition-colors shrink-0"
+                        title="Jump to query"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M6 3l5 5-5 5" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {aiResponse?.sql && (
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <button
+                            onClick={() => toggleSql(msg.index)}
+                            className="flex items-center gap-2 text-xs font-medium text-gray-600 hover:text-blue-600 transition-colors"
+                          >
+                            <Code className="w-3.5 h-3.5" />
+                            <span>{isSqlExpanded ? 'Hide SQL' : 'View SQL'}</span>
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isSqlExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+                          {isSqlExpanded && (
+                            <button
+                              onClick={() => copyToClipboard(aiResponse.sql)}
+                              className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-blue-600 transition-colors"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {isSqlExpanded && (
+                          <div className="bg-gray-900 rounded-lg p-3 overflow-x-auto">
+                            <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
+                              {aiResponse.sql}
+                            </pre>
+                          </div>
+                        )}
+
+                        {!isSqlExpanded && (
+                          <div className="bg-gray-50 rounded px-3 py-2">
+                            <p className="text-xs text-gray-500 font-mono truncate">
+                              {aiResponse.sql}
+                            </p>
+                          </div>
                         )}
                       </div>
-                      <p className="text-sm font-semibold text-gray-800 truncate">{msg.content}</p>
-                      {aiResponse?.sql && (
-                        <p className="text-xs text-gray-400 mt-1 truncate font-mono">{aiResponse.sql}</p>
-                      )}
-                    </div>
-                    <div className="text-gray-300 group-hover:text-blue-500 transition-colors mt-0.5 shrink-0">
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M6 3l5 5-5 5" />
-                      </svg>
-                    </div>
+                    )}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -367,6 +460,7 @@ const Dashboard = ({ user, onLogout }) => {
           timestamp: new Date()
         }
       ],
+      charts: [],
       lastUpdated: new Date()
     }
   ]);
@@ -377,12 +471,10 @@ const Dashboard = ({ user, onLogout }) => {
 
   const activeConv = conversations.find(c => c.id === activeConvId);
 
-  // Update conversation messages
   const setMessages = (updater) => {
     setConversations(prev => prev.map(conv => {
       if (conv.id === activeConvId) {
         const newMessages = typeof updater === 'function' ? updater(conv.messages) : updater;
-        // Auto-generate title from first user message
         let newTitle = conv.title;
         if (newTitle === 'New Conversation') {
           const firstUserMsg = newMessages.find(m => m.type === 'user');
@@ -391,6 +483,38 @@ const Dashboard = ({ user, onLogout }) => {
           }
         }
         return { ...conv, messages: newMessages, lastUpdated: new Date(), title: newTitle };
+      }
+      return conv;
+    }));
+  };
+
+  const handleChartCreated = (chart) => {
+    setConversations(prev => prev.map(conv => {
+      if (conv.id === activeConvId) {
+        return {
+          ...conv,
+          charts: [...(conv.charts || []), chart]
+        };
+      }
+      return conv;
+    }));
+  };
+
+  const handleChartsLoaded = (charts) => {
+    // Add initial dashboard charts to visualization history
+    setConversations(prev => prev.map(conv => {
+      if (conv.id === activeConvId) {
+        // Only add if charts array is empty (first load)
+        if (!conv.charts || conv.charts.length === 0) {
+          return {
+            ...conv,
+            charts: charts.map(chart => ({
+              ...chart,
+              query: 'Initial Dashboard',
+              created_at: chart.created_at || new Date().toISOString()
+            }))
+          };
+        }
       }
       return conv;
     }));
@@ -408,6 +532,7 @@ const Dashboard = ({ user, onLogout }) => {
           timestamp: new Date()
         }
       ],
+      charts: [],
       lastUpdated: new Date()
     };
     setConversations(prev => [...prev, newConv]);
@@ -416,7 +541,7 @@ const Dashboard = ({ user, onLogout }) => {
   };
 
   const deleteConversation = (convId) => {
-    if (conversations.length === 1) return; // Don't delete the last one
+    if (conversations.length === 1) return;
     setConversations(prev => prev.filter(c => c.id !== convId));
     if (activeConvId === convId) {
       setActiveConvId(conversations.find(c => c.id !== convId).id);
@@ -461,7 +586,6 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
 
           <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-            {/* New Chat Button */}
             <button
               onClick={createNewConversation}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors bg-blue-600 hover:bg-blue-500 text-white font-semibold mb-3"
@@ -474,13 +598,14 @@ const Dashboard = ({ user, onLogout }) => {
             {[
               { id: 'dashboard', label: 'Dashboard', icon: BarChart2 },
               { id: 'history', label: 'Conversation History', icon: Clock },
+              { id: 'visualizations', label: 'Visualization History', icon: PieChart },
             ].map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveNav(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${activeNav === item.id
-                  ? 'bg-blue-50 text-blue-600 font-semibold'
-                  : 'text-gray-600 hover:bg-gray-50'
+                    ? 'bg-blue-50 text-blue-600 font-semibold'
+                    : 'text-gray-600 hover:bg-gray-50'
                   }`}
               >
                 <item.icon className="w-4 h-4" />
@@ -488,7 +613,6 @@ const Dashboard = ({ user, onLogout }) => {
               </button>
             ))}
 
-            {/* Conversations List */}
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 mt-4">Chats</p>
             <div className="space-y-0.5">
               {conversations.sort((a, b) => b.lastUpdated - a.lastUpdated).map((conv) => (
@@ -514,8 +638,8 @@ const Dashboard = ({ user, onLogout }) => {
                     <button
                       onClick={() => setActiveConvId(conv.id)}
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${activeConvId === conv.id
-                        ? 'bg-blue-50 text-blue-600 font-semibold'
-                        : 'text-gray-600 hover:bg-gray-50'
+                          ? 'bg-blue-50 text-blue-600 font-semibold'
+                          : 'text-gray-600 hover:bg-gray-50'
                         }`}
                     >
                       <MessageSquare className="w-3.5 h-3.5 shrink-0" />
@@ -564,9 +688,7 @@ const Dashboard = ({ user, onLogout }) => {
         </div>
       )}
 
-      {/* Main Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
         <div className="bg-white border-b border-gray-200 px-5 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <button
@@ -576,7 +698,11 @@ const Dashboard = ({ user, onLogout }) => {
               <Menu className="w-5 h-5" />
             </button>
             <h2 className="text-lg font-bold text-gray-900">
-              {activeNav === 'history' ? 'Conversation History' : activeConv?.title || 'Dashboard'}
+              {activeNav === 'history'
+                ? 'Conversation History'
+                : activeNav === 'visualizations'
+                  ? 'Visualization History'
+                  : 'Dashboard'}
             </h2>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -585,30 +711,54 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
         </div>
 
-        {/* Body */}
         <div className="flex flex-1 overflow-hidden">
-          {activeNav === 'history' ? (
+          {activeNav === 'history' && (
             <HistoryTab messages={activeConv?.messages || []} onClickQuery={handleHistoryClick} />
-          ) : (
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className="text-center">
-                <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
-                  <BarChart2 className="w-10 h-10 text-gray-300" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">Dashboard</h3>
-                <p className="text-sm text-gray-400 max-w-xs mx-auto">
-                  Ask questions in the chat to get data insights. Visualizations and graphs will appear here as you explore your data.
-                </p>
-              </div>
-            </div>
           )}
+          {activeNav === 'visualizations' && (
+            <VisualizationHistory
+              charts={activeConv?.charts || []}
+              onRestoreChart={async (chart) => {
+                try {
+                  const token = sessionStorage.getItem('token');
+                  await fetch(`${API_URL}/dashboard/add-chart`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      session_id: `session-${activeConvId}`,
+                      query: chart.query || chart.title || '',
+                      sql: '',
+                      result: { success: true, data: chart.data || [] }
+                    })
+                  });
+                  window.dispatchEvent(new CustomEvent('refreshDashboard'));
+                } catch (e) {
+                  console.error('Failed to restore chart to dashboard:', e);
+                }
+              }}
+              onClearHistory={() => {
+                setConversations(prev => prev.map(conv =>
+                  conv.id === activeConvId ? { ...conv, charts: [] } : conv
+                ));
+              }}
+            />
+          )}
+          {/* DashboardContainer stays mounted across tab switches so it can receive
+              refreshDashboard events dispatched from the Visualizations tab */}
+          <div className={`flex-1 overflow-hidden${activeNav === 'dashboard' ? '' : ' hidden'}`}>
+            <DashboardContainer
+              sessionId={`session-${activeConvId}`}
+              onChartsLoaded={handleChartsLoaded}
+            />
+          </div>
 
-          {/* Right — Chat Panel */}
           <div className="w-96 shrink-0 p-4 overflow-hidden">
             <ChatPanel
               messages={activeConv?.messages || []}
               setMessages={setMessages}
               scrollToIndex={scrollToIndex}
+              sessionId={`session-${activeConvId}`}
+              onChartCreated={handleChartCreated}
             />
           </div>
         </div>
@@ -617,20 +767,19 @@ const Dashboard = ({ user, onLogout }) => {
   );
 };
 
-// ─── App Root ────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
+    const savedUser = sessionStorage.getItem('user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
     setUser(null);
   };
 

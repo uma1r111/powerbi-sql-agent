@@ -1,6 +1,6 @@
 """
 FastAPI Backend for IntelliQuery
-Provides REST API for the SQL Agent
+Provides REST API for the SQL Agent with Dashboard Support
 """
 
 from fastapi import FastAPI, HTTPException, Depends, status
@@ -14,13 +14,21 @@ import os
 import sys
 from pathlib import Path
 
-# Add parent directory to path to import from other modules
+# Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
 
-# Import your SQL Agent from flow.graph
+# Import SQL Agent
 from flow.graph import agent
+
+# Import preprocessor and classifier
+from utils.query_preprocessor import preprocessor
+from utils.query_classifier import classifier
+
+# Import dashboard components
+from tools.dashboard_manager import dashboard_manager
+from tools.chart_recommender import chart_recommender
 
 load_dotenv()
 
@@ -39,7 +47,7 @@ app = FastAPI(
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,10 +56,13 @@ app.add_middleware(
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Session state storage (in production, use Redis or database)
+# Session state storage
 session_states = {}
 
-# User store with 3 users
+# Track last query per session for context
+last_query_per_session = {}
+
+# User store
 fake_users_db = {
     "sameed@intelliquery.com": {
         "username": "sameed@intelliquery.com",
@@ -108,6 +119,7 @@ class QueryResponse(BaseModel):
     error: Optional[str] = None
     execution_time: Optional[float] = None
     timestamp: datetime = datetime.now()
+    chart: Optional[Dict[str, Any]] = None  # New: chart config if applicable
 
 class ConversationItem(BaseModel):
     id: int
@@ -115,6 +127,27 @@ class ConversationItem(BaseModel):
     sql: str
     timestamp: datetime
     result_count: int
+
+# Dashboard Models
+class AddChartRequest(BaseModel):
+    session_id: str
+    query: str
+    sql: str
+    result: Dict[str, Any]
+
+class CrossFilterRequest(BaseModel):
+    session_id: str
+    filter_key: str
+    filter_value: Any
+
+class RemoveChartRequest(BaseModel):
+    session_id: str
+    chart_id: str
+
+class UpdatePositionRequest(BaseModel):
+    session_id: str
+    chart_id: str
+    position: Dict[str, int]
 
 # Helper Functions
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -150,18 +183,14 @@ async def root():
         "message": "IntelliQuery API",
         "version": "1.0.0",
         "status": "running",
-        "agent_ready": True
+        "agent_ready": True,
+        "dashboard_enabled": True
     }
 
 @app.post("/api/login", response_model=LoginResponse)
 async def login_json(request: LoginRequest):
-    """JSON login endpoint for the React frontend"""
+    """JSON login endpoint"""
     user = fake_users_db.get(request.email)
-    
-    # 🔍 DEBUG PRINT - This will show up in your terminal
-    print(f"\n\n👉 DEBUG: Email='{request.email}'")
-    print(f"👉 DEBUG: Password Sent='{request.password}'")
-    print(f"👉 DEBUG: Password Expected='{user['hashed_password'] if user else 'NO USER FOUND'}'\n\n")
 
     if not user or user["hashed_password"] != request.password:
         raise HTTPException(
@@ -191,13 +220,68 @@ async def process_query(
     request: QueryRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """Process natural language query"""
+    """Process natural language query with preprocessing and context awareness"""
     try:
         start_time = datetime.now()
+        
+        # Get context from last query
+        session_context = last_query_per_session.get(request.session_id, {})
+        last_query = session_context.get("query", "")
+        last_topic = session_context.get("topic", "")
+        
+        # Check if greeting/casual conversation or follow-up
+        needs_sql, response_type = classifier.is_sql_query(
+            request.question, 
+            last_query=last_query,
+            last_topic=last_topic
+        )
+        
+        if not needs_sql:
+            # Generate conversational response
+            response = classifier.generate_response(request.question, response_type)
+            
+            print(f"\n💬 Non-SQL query detected: {response_type}")
+            print(f"   Query: {request.question}")
+            
+            return QueryResponse(
+                success=True,
+                sql=None,
+                results=[],
+                explanation=response,
+                warnings=[],
+                error=None,
+                execution_time=None,
+                chart=None
+            )
+        
+        # Handle follow-up queries
+        processed_query = request.question
+        if response_type == 'follow_up':
+            processed_query = classifier.expand_follow_up_query(
+                request.question, 
+                last_query, 
+                last_topic
+            )
+            print(f"\n🔗 Context expansion:")
+            print(f"   Original: {request.question}")
+            print(f"   Expanded: {processed_query}\n")
+        
+        # Preprocess the SQL query
+        preprocessed_query, corrections = preprocessor.preprocess(processed_query)
+        
+        if corrections:
+            print(f"\n📝 Query Preprocessing:")
+            print(f"   Original: {processed_query}")
+            print(f"   Preprocessed: {preprocessed_query}")
+            print(f"   Corrections: {', '.join(corrections)}\n")
+        
         existing_state = session_states.get(request.session_id)
         
+        # Process SQL query
+        print(f"\n🔍 Sending to agent: '{preprocessed_query}'")
+        
         result = agent.process_query_sync(
-            request.question,
+            preprocessed_query,
             session_id=request.session_id,
             existing_state=existing_state
         )
@@ -205,32 +289,121 @@ async def process_query(
         session_states[request.session_id] = result
         execution_time = (datetime.now() - start_time).total_seconds()
         
-        # Extract ONLY the formatted response
+        # Extract topic
+        topic = "general"
+        if 'product' in preprocessed_query.lower():
+            topic = "product"
+        elif 'customer' in preprocessed_query.lower():
+            topic = "customer"
+        elif 'order' in preprocessed_query.lower():
+            topic = "order"
+        elif 'sales' in preprocessed_query.lower() or 'revenue' in preprocessed_query.lower():
+            topic = "sales"
+        
+        # Store query as context
+        last_query_per_session[request.session_id] = {
+            "query": preprocessed_query,
+            "topic": topic
+        }
+        
+        # Extract response text — only use AI messages, not the user's own query
         response_text = ""
-        if result.messages and len(result.messages) > 0:
-            response_text = result.messages[-1].content
+        for msg in reversed(result.messages or []):
+            msg_type = getattr(msg, 'type', None) or (msg.get('type') if isinstance(msg, dict) else None)
+            if msg_type in ('ai', 'AIMessage') or (hasattr(msg, '__class__') and 'AI' in msg.__class__.__name__):
+                response_text = msg.content if hasattr(msg, 'content') else msg.get('content', '')
+                break
+
+        # If agent exited early (error path) with no AI message, build a user-friendly error
+        if not response_text or not result.processing_complete:
+            if result.errors:
+                last_err = result.errors[-1]
+                # Strip internal prefixes that aren't user-friendly
+                if last_err.startswith("Workflow execution failed:") or last_err.startswith("Query validation error:"):
+                    response_text = "I was unable to process your query due to an internal error. Please try rephrasing your question."
+                else:
+                    response_text = last_err
+            elif not result.execution_successful:
+                response_text = "I was unable to retrieve results for that query. Please try rephrasing or simplifying your question."
+            else:
+                response_text = "Query processed successfully."
         
-        # ❌ DON'T DO THIS - It sends raw data:
-        # return QueryResponse(
-        #     success=True,
-        #     results=query_results,  # ← This causes the JSON to appear!
-        #     explanation=response_text
-        # )
+        # Extract SQL
+        sql_query = None
+        if hasattr(result, 'cleaned_sql') and result.cleaned_sql:
+            sql_query = result.cleaned_sql
+        elif hasattr(result, 'generated_sql') and result.generated_sql:
+            sql_query = result.generated_sql
         
-        # ✅ DO THIS INSTEAD - Only send formatted text:
+        # Extract results
+        query_results = []
+        if hasattr(result, 'execution_results') and result.execution_results:
+            if isinstance(result.execution_results, dict):
+                query_results = result.execution_results.get('data', [])
+            elif isinstance(result.execution_results, list):
+                query_results = result.execution_results
+        
+        # Generate chart if results exist
+        chart_config = None
+        if query_results and len(query_results) > 0 and result.execution_successful:
+            try:
+                # Check if query should generate a chart (has visualization keywords)
+                should_visualize = any(keyword in preprocessed_query.lower() for keyword in [
+                    'show', 'chart', 'graph', 'visualize', 'plot', 'compare', 'trend', 
+                    'top', 'best', 'worst', 'distribution', 'breakdown', 'over time'
+                ])
+                
+                if should_visualize or len(query_results) <= 20:
+                    # Generate chart automatically
+                    chart_config = dashboard_manager.add_chart_from_query(
+                        session_id=request.session_id,
+                        query=preprocessed_query,
+                        sql=sql_query,
+                        result={'success': True, 'data': query_results}
+                    )
+                    
+                    if chart_config:
+                        print(f"📊 Chart generated: {chart_config.get('type')} - {chart_config.get('title')}")
+                
+            except Exception as e:
+                print(f"⚠️ Could not generate chart: {e}")
+        
+        # Debug logging
+        print(f"\n{'='*70}")
+        print(f"📊 SQL QUERY DEBUG:")
+        print(f"   User Input: {request.question}")
+        print(f"   Preprocessed: {preprocessed_query}")
+        print(f"   Topic: {topic}")
+        print(f"   SQL Found: {sql_query is not None}")
+        if sql_query:
+            print(f"   SQL: {sql_query[:100]}...")
+        print(f"   Results Count: {len(query_results)}")
+        print(f"   Chart Generated: {chart_config is not None}")
+        if chart_config:
+            print(f"   Chart Type: {chart_config.get('type')}")
+        print(f"   AI Response Length: {len(response_text)}")
+        print(f"   AI Response Preview: {response_text[:200]}...")
+        print(f"   Execution Successful: {result.execution_successful}")
+        print(f"   Processing Complete: {result.processing_complete}")
+        if result.errors:
+            print(f"   Errors: {result.errors}")
+        print(f"{'='*70}\n")
+        
         return QueryResponse(
             success=True,
-            sql=None,  # Don't send SQL unless requested
-            results=[],  # Don't send raw results - they're in the explanation!
-            explanation=response_text,  # This has the beautiful formatted output
+            sql=sql_query,
+            results=query_results,
+            explanation=response_text,
             warnings=[],
             error=None,
-            execution_time=execution_time
+            execution_time=execution_time if sql_query else None,
+            chart=chart_config
         )
 
     except Exception as e:
         import traceback
-        print(f"Query error: {str(e)}\n{traceback.format_exc()}")
+        error_trace = traceback.format_exc()
+        print(f"❌ Query error: {str(e)}\n{error_trace}")
         
         return QueryResponse(
             success=False,
@@ -239,9 +412,248 @@ async def process_query(
             explanation=None,
             warnings=[],
             error=str(e),
-            execution_time=0
+            execution_time=None,
+            chart=None
+        )
+
+# ==================== DASHBOARD ENDPOINTS ====================
+
+@app.get("/api/dashboard/initial")
+async def get_initial_dashboard(
+    session_id: str = "default",
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate and return initial dashboard on login
+    Returns 6 default charts with KPIs and visualizations
+    """
+    try:
+        print(f"\n🎨 Generating initial dashboard for {current_user.email}")
+        
+        dashboard = dashboard_manager.generate_initial_dashboard(
+            user_email=current_user.email,
+            session_id=session_id
         )
         
+        print(f"✅ Dashboard generated with {len(dashboard.get('charts', []))} charts")
+        
+        return {
+            "success": True,
+            "dashboard": dashboard
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"❌ Dashboard generation error: {e}")
+        traceback.print_exc()
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate dashboard: {str(e)}"
+        )
+
+@app.get("/api/dashboard/current")
+async def get_current_dashboard(
+    session_id: str = "default",
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current dashboard state for a session
+    """
+    try:
+        dashboard = dashboard_manager.get_dashboard(session_id)
+        
+        if not dashboard:
+            # Generate new dashboard if none exists
+            dashboard = dashboard_manager.generate_initial_dashboard(
+                user_email=current_user.email,
+                session_id=session_id
+            )
+        
+        return {
+            "success": True,
+            "dashboard": dashboard
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get dashboard: {str(e)}"
+        )
+
+@app.post("/api/dashboard/add-chart")
+async def add_chart_to_dashboard(
+    request: AddChartRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Manually add a chart to dashboard from query result
+    """
+    try:
+        chart = dashboard_manager.add_chart_from_query(
+            session_id=request.session_id,
+            query=request.query,
+            sql=request.sql,
+            result=request.result
+        )
+        
+        if not chart:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not generate chart from query result"
+            )
+        
+        return {
+            "success": True,
+            "chart": chart
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to add chart: {str(e)}"
+        )
+
+@app.post("/api/dashboard/cross-filter")
+async def apply_cross_filter(
+    request: CrossFilterRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Apply cross-filter to dashboard
+    Re-queries all charts with the filter applied
+    """
+    try:
+        print(f"\n🔗 Applying cross-filter: {request.filter_key} = {request.filter_value}")
+        
+        updated_dashboard = dashboard_manager.apply_filter(
+            session_id=request.session_id,
+            filter_key=request.filter_key,
+            filter_value=request.filter_value
+        )
+        
+        return {
+            "success": True,
+            "dashboard": updated_dashboard
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to apply filter: {str(e)}"
+        )
+
+@app.post("/api/dashboard/clear-filters")
+async def clear_all_filters(
+    session_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Clear all filters from dashboard and refresh
+    """
+    try:
+        updated_dashboard = dashboard_manager.clear_filters(session_id)
+        
+        return {
+            "success": True,
+            "dashboard": updated_dashboard
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to clear filters: {str(e)}"
+        )
+
+@app.post("/api/dashboard/remove-chart")
+async def remove_chart_from_dashboard(
+    request: RemoveChartRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Remove a chart from dashboard
+    """
+    try:
+        success = dashboard_manager.remove_chart(
+            session_id=request.session_id,
+            chart_id=request.chart_id
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail="Chart not found"
+            )
+        
+        return {
+            "success": True,
+            "message": "Chart removed successfully"
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to remove chart: {str(e)}"
+        )
+
+@app.post("/api/dashboard/update-position")
+async def update_chart_position(
+    request: UpdatePositionRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update chart position in grid layout
+    """
+    try:
+        success = dashboard_manager.update_chart_position(
+            session_id=request.session_id,
+            chart_id=request.chart_id,
+            position=request.position
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail="Chart not found"
+            )
+        
+        return {
+            "success": True,
+            "message": "Chart position updated"
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update position: {str(e)}"
+        )
+
+@app.delete("/api/dashboard/clear")
+async def clear_dashboard(
+    session_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Clear all charts from dashboard
+    """
+    try:
+        success = dashboard_manager.clear_dashboard(session_id)
+        
+        return {
+            "success": success,
+            "message": "Dashboard cleared" if success else "Dashboard not found"
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to clear dashboard: {str(e)}"
+        )
+
+# ==================== EXISTING ENDPOINTS ====================
 
 @app.get("/api/history", response_model=List[ConversationItem])
 async def get_conversation_history(
@@ -250,8 +662,6 @@ async def get_conversation_history(
     current_user: User = Depends(get_current_user)
 ):
     """Get conversation history"""
-    # This would query your state's context window
-    # For now, returning empty list
     return []
 
 @app.get("/health")
@@ -260,7 +670,8 @@ async def health_check():
     return {
         "status": "healthy",
         "database": "connected",
-        "ai_model": "ready"
+        "ai_model": "ready",
+        "dashboard": "enabled"
     }
 
 if __name__ == "__main__":
@@ -270,5 +681,9 @@ if __name__ == "__main__":
     print("=" * 70)
     print("📍 API will be available at: http://localhost:8000")
     print("📍 API docs at: http://localhost:8000/docs")
+    print("📍 Query Preprocessor: ENABLED ✅")
+    print("📍 Context Awareness: ENABLED ✅")
+    print("📍 Dashboard Manager: ENABLED ✅")
+    print("📍 Chart Recommender: ENABLED ✅")
     print("=" * 70)
     uvicorn.run(app, host="0.0.0.0", port=8000)
