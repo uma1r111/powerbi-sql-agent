@@ -24,6 +24,7 @@ from utils.query_preprocessor import preprocessor
 from utils.query_classifier import classifier
 from tools.dashboard_manager import dashboard_manager
 from tools.chart_recommender import chart_recommender
+from tools.sql_tools import sql_executor
 from database.redis_client import RedisClient
 from database.session_store import user_session_store
 from rag.document_store import document_store
@@ -636,6 +637,94 @@ async def clear_dashboard(session_id: str, current_user: User = Depends(get_curr
         return {"success": success, "message": "Dashboard cleared" if success else "Dashboard not found"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to clear dashboard: {str(e)}")
+
+
+# ── Chart builder endpoints ───────────────────────────────────────────────────
+
+class ExecuteQueryRequest(BaseModel):
+    sql: str
+
+class AddManualChartRequest(BaseModel):
+    session_id: str
+    chart: Dict[str, Any]
+
+class UpdateChartRequest(BaseModel):
+    session_id: str
+    chart_id: str
+    updates: Dict[str, Any]
+
+
+@app.get("/api/schema")
+async def get_database_schema(current_user: User = Depends(get_current_user)):
+    """Return the full database schema (tables + columns + types) for the chart builder."""
+    try:
+        schema = dashboard_manager.get_schema()
+        return {"success": True, "schema": schema}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get schema: {str(e)}")
+
+
+@app.post("/api/execute-query")
+async def execute_custom_query(
+    request: ExecuteQueryRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Execute a read-only SELECT query and return results. Used by the chart builder."""
+    sql = request.sql.strip()
+    if not sql:
+        raise HTTPException(status_code=400, detail="SQL query is required")
+    if not sql.upper().lstrip().startswith("SELECT"):
+        raise HTTPException(status_code=400, detail="Only SELECT statements are allowed")
+    try:
+        result = sql_executor.execute_query(sql)
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "Query failed"))
+        return {"success": True, "data": result.get("data", []), "row_count": len(result.get("data", []))}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/dashboard/add-manual-chart")
+async def add_manual_chart(
+    request: AddManualChartRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Add a manually-configured chart from the chart builder UI."""
+    try:
+        chart = dashboard_manager.add_manual_chart(
+            session_id=request.session_id,
+            chart_def=request.chart
+        )
+        if not chart:
+            raise HTTPException(status_code=400, detail="Could not add chart to dashboard")
+        return {"success": True, "chart": chart}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to add chart: {str(e)}")
+
+
+@app.post("/api/dashboard/update-chart")
+async def update_chart_config(
+    request: UpdateChartRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Update a chart's title, type, or color config."""
+    try:
+        chart = dashboard_manager.update_chart_config(
+            session_id=request.session_id,
+            chart_id=request.chart_id,
+            updates=request.updates
+        )
+        if not chart:
+            raise HTTPException(status_code=404, detail="Chart not found")
+        return {"success": True, "chart": chart}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update chart: {str(e)}")
 
 
 @app.get("/api/history", response_model=List[ConversationItem])

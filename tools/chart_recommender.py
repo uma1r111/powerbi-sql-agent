@@ -4,299 +4,324 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+
 class ChartRecommender:
-    """AI-powered chart type recommendation based on query and data structure"""
-    
-    def __init__(self):
-        self.chart_types = {
-            'line': ['time', 'trend', 'over time', 'monthly', 'yearly', 'daily', 'weekly'],
-            'bar': ['top', 'bottom', 'compare', 'comparison', 'best', 'worst', 'ranking'],
-            'pie': ['distribution', 'breakdown', 'by category', 'proportion', 'percentage'],
-            'area': ['cumulative', 'stacked', 'total over time'],
-            'scatter': ['correlation', 'relationship', 'vs', 'versus'],
-            'table': ['list', 'show all', 'details', 'full data'],
-            'kpi': ['total', 'sum', 'count', 'average', 'how many', 'how much']
-        }
-    
+    """
+    Smart chart type recommendation following Power BI best-practice guidelines.
+
+    Supported types: kpi, line, area, bar, pie, donut, scatter, treemap,
+                     funnel, radar, tornado, table
+    """
+
+    # ── Keyword → type mapping ──────────────────────────────────────────
+    _KW = {
+        'line':     ['trend', 'over time', 'monthly', 'yearly', 'daily', 'weekly', 'timeline', 'history', 'growth', 'progression'],
+        'area':     ['cumulative', 'stacked', 'total over time', 'magnitude', 'fill', 'area under'],
+        'bar':      ['top', 'bottom', 'compare', 'comparison', 'best', 'worst', 'ranking', 'vs', 'highest', 'lowest', 'most', 'least'],
+        'pie':      ['share', 'percentage', 'proportion', 'portion', 'slice'],
+        'donut':    ['distribution', 'breakdown', 'composition', 'by category', 'split', 'makeup'],
+        'scatter':  ['correlation', 'relationship', 'versus', 'impact', 'effect', 'regression', 'cluster'],
+        'treemap':  ['hierarchy', 'nested', 'sub-category', 'sub category', 'tree', 'map', 'portfolio'],
+        'funnel':   ['pipeline', 'funnel', 'stage', 'conversion', 'drop off', 'dropoff', 'process', 'flow'],
+        'radar':    ['performance', 'multi-dimension', 'profile', 'spider', 'radar', 'capabilities', 'skills', 'attributes'],
+        'tornado':  ['sensitivity', 'impact analysis', 'drivers', 'factors', 'waterfall', 'bridge'],
+        'table':    ['list', 'show all', 'details', 'full data', 'all records', 'raw', 'report'],
+        'kpi':      ['total', 'sum', 'count', 'average', 'how many', 'how much', 'metric', 'kpi', 'indicator'],
+    }
+
     def recommend_chart_type(self, query: str, data: List[Dict], query_result_count: int = 0) -> str:
-        """
-        Recommend best chart type based on query intent and data structure
-        
-        Returns: 'line', 'bar', 'pie', 'area', 'scatter', 'table', 'kpi'
-        """
-        if not data or len(data) == 0:
+        """Recommend the most appropriate chart type for the given query + data."""
+        if not data:
             return 'table'
-        
+
         query_lower = query.lower()
         columns = list(data[0].keys())
-        
-        # Single row, single numeric value → KPI Card
-        if len(data) == 1 and len(columns) == 1:
+        row_count = len(data)
+
+        # ── Single-value → KPI ──────────────────────────────────────────
+        if row_count == 1 and len(columns) == 1:
             return 'kpi'
-        
-        # Check for explicit keywords in query
-        for chart_type, keywords in self.chart_types.items():
-            if any(keyword in query_lower for keyword in keywords):
-                # Verify data structure supports this chart type
-                if self._validate_chart_type_for_data(chart_type, data):
+        if row_count == 1 and len(columns) <= 2:
+            numeric_vals = [v for v in data[0].values() if isinstance(v, (int, float))]
+            if len(numeric_vals) >= 1:
+                return 'kpi'
+
+        # ── Keyword match (priority order) ─────────────────────────────
+        for chart_type, keywords in self._KW.items():
+            if any(kw in query_lower for kw in keywords):
+                if self._data_supports(chart_type, data, columns):
                     return chart_type
-        
-        # Analyze data structure
-        return self._infer_from_data_structure(data, columns)
-    
-    def _validate_chart_type_for_data(self, chart_type: str, data: List[Dict]) -> bool:
-        """Check if data structure supports the chart type"""
-        if not data:
-            return False
-        
-        columns = list(data[0].keys())
-        
+
+        # ── Data-structure inference ────────────────────────────────────
+        return self._infer(data, columns, row_count)
+
+    # ── Data compatibility checks ────────────────────────────────────────
+
+    def _data_supports(self, chart_type: str, data: List[Dict], columns: List[str]) -> bool:
         if chart_type == 'kpi':
-            return len(data) == 1 and len(columns) <= 2
-        
-        if chart_type in ['line', 'area']:
-            # Need time-based column
-            return any(self._is_date_column(col) for col in columns)
-        
+            return len(data) == 1
+
+        if chart_type in ('line', 'area'):
+            return any(self._is_date(c) for c in columns)
+
         if chart_type == 'scatter':
-            # Need at least 2 numeric columns
-            numeric_cols = [col for col in columns if self._is_numeric_column(col, data)]
-            return len(numeric_cols) >= 2
-        
+            numeric = [c for c in columns if self._is_numeric(c, data)]
+            return len(numeric) >= 2
+
+        if chart_type in ('pie', 'donut', 'funnel'):
+            return len(columns) >= 2 and len(data) <= 30
+
+        if chart_type == 'treemap':
+            return len(columns) >= 2 and self._has_numeric(columns, data)
+
+        if chart_type == 'radar':
+            numeric = [c for c in columns if self._is_numeric(c, data)]
+            return len(numeric) >= 2
+
+        if chart_type == 'tornado':
+            return len(columns) >= 2
+
         return True
-    
-    def _infer_from_data_structure(self, data: List[Dict], columns: List[str]) -> str:
-        """Infer chart type from data structure alone"""
-        
-        # Check for date columns
-        date_columns = [col for col in columns if self._is_date_column(col)]
-        
-        # Time series data → Line chart
-        if date_columns and len(columns) == 2:
+
+    def _infer(self, data: List[Dict], columns: List[str], row_count: int) -> str:
+        """Infer chart type purely from data structure."""
+        date_cols = [c for c in columns if self._is_date(c)]
+        numeric_cols = [c for c in columns if self._is_numeric(c, data)]
+
+        # Time-series
+        if date_cols and len(columns) == 2:
             return 'line'
-        
-        # Many rows with categories → Bar chart
-        if len(data) > 2 and len(data) <= 20:
+        if date_cols and numeric_cols:
+            return 'area' if row_count > 30 else 'line'
+
+        # Multiple numeric columns with a label → radar or bar
+        if len(numeric_cols) >= 3 and len(data) <= 15:
+            return 'radar'
+
+        # Two columns, few rows → donut
+        if len(columns) == 2 and 2 <= row_count <= 8:
+            return 'donut'
+
+        # Two columns, moderate rows → bar
+        if len(columns) == 2 and 2 <= row_count <= 20:
             return 'bar'
-        
-        # Few categories → Pie chart
-        if len(data) <= 6 and len(columns) == 2:
-            return 'pie'
-        
-        # Many rows → Table
-        if len(data) > 20:
+
+        # Many rows → table
+        if row_count > 50:
             return 'table'
-        
-        # Default to bar chart
+
+        # Hierarchical-looking data (both categorical + numeric)
+        if len(numeric_cols) >= 1 and row_count > 20:
+            return 'treemap'
+
+        # Default
         return 'bar'
-    
-    def _is_date_column(self, column_name: str) -> bool:
-        """Check if column name suggests date/time data"""
-        date_keywords = ['date', 'time', 'month', 'year', 'day', 'week', 'period']
-        return any(keyword in column_name.lower() for keyword in date_keywords)
-    
-    def _is_numeric_column(self, column_name: str, data: List[Dict]) -> bool:
-        """Check if column contains numeric data"""
-        numeric_keywords = ['amount', 'total', 'revenue', 'sales', 'quantity', 'count', 'price']
-        
-        # Check column name
-        if any(keyword in column_name.lower() for keyword in numeric_keywords):
+
+    # ── Column type helpers ──────────────────────────────────────────────
+
+    def _is_date(self, col: str) -> bool:
+        return any(kw in col.lower() for kw in ['date', 'time', 'month', 'year', 'day', 'week', 'period', 'quarter'])
+
+    def _is_numeric(self, col: str, data: List[Dict]) -> bool:
+        numeric_kw = ['amount', 'total', 'revenue', 'sales', 'profit', 'quantity', 'count',
+                      'price', 'cost', 'value', 'rate', 'sum', 'avg', 'average', 'num',
+                      'score', 'percent', 'pct', 'ratio', 'units', 'volume']
+        if any(kw in col.lower() for kw in numeric_kw):
             return True
-        
-        # Check actual data
         try:
-            first_value = data[0].get(column_name)
-            return isinstance(first_value, (int, float)) or (
-                isinstance(first_value, str) and first_value.replace('.', '').replace('-', '').isdigit()
-            )
-        except:
+            val = data[0].get(col)
+            return isinstance(val, (int, float)) and not isinstance(val, bool)
+        except Exception:
             return False
-    
+
+    def _has_numeric(self, columns: List[str], data: List[Dict]) -> bool:
+        return any(self._is_numeric(c, data) for c in columns)
+
+    # ── Config extraction ────────────────────────────────────────────────
+
     def extract_chart_config(self, data: List[Dict], chart_type: str, query: str) -> Dict[str, Any]:
-        """
-        Extract chart configuration from data
-        Returns config with x-axis, y-axis, title, colors, etc.
-        """
+        """Build a complete chart configuration dictionary."""
         if not data:
-            return {}
-        
+            return {'type': chart_type, 'title': self._title(query, chart_type), 'data': data, 'config': {}}
+
         columns = list(data[0].keys())
-        
-        config = {
+        base = {
             'type': chart_type,
-            'title': self._generate_title(query, chart_type),
+            'title': self._title(query, chart_type),
             'data': data,
             'config': {}
         }
-        
-        if chart_type == 'kpi':
-            return self._config_kpi(data, columns, config)
-        
-        elif chart_type in ['line', 'area']:
-            return self._config_line_area(data, columns, config, chart_type)
-        
-        elif chart_type == 'bar':
-            return self._config_bar(data, columns, config, query)
-        
-        elif chart_type == 'pie':
-            return self._config_pie(data, columns, config)
-        
-        elif chart_type == 'scatter':
-            return self._config_scatter(data, columns, config)
-        
-        elif chart_type == 'table':
-            return self._config_table(data, columns, config)
-        
-        return config
-    
-    def _config_kpi(self, data: List[Dict], columns: List[str], config: Dict) -> Dict:
-        """Configure KPI card"""
-        value_col = columns[0]
-        value = data[0][value_col]
-        
-        config['config'] = {
-            'value': value,
-            'label': value_col.replace('_', ' ').title(),
-            'format': 'number' if isinstance(value, (int, float)) else 'text'
+
+        dispatch = {
+            'kpi':      self._cfg_kpi,
+            'line':     lambda d, c, cfg: self._cfg_line_area(d, c, cfg, 'line'),
+            'area':     lambda d, c, cfg: self._cfg_line_area(d, c, cfg, 'area'),
+            'bar':      self._cfg_bar,
+            'pie':      self._cfg_pie_donut,
+            'donut':    self._cfg_pie_donut,
+            'scatter':  self._cfg_scatter,
+            'treemap':  self._cfg_treemap,
+            'funnel':   self._cfg_funnel,
+            'radar':    self._cfg_radar,
+            'tornado':  self._cfg_tornado,
+            'table':    self._cfg_table,
         }
-        
-        # If there's a second column, use it for trend
+
+        handler = dispatch.get(chart_type, self._cfg_table)
+        try:
+            return handler(data, columns, base)
+        except Exception as e:
+            logger.warning(f"Config extraction failed for {chart_type}: {e}")
+            return self._cfg_table(data, columns, base)
+
+    # ── Per-type config builders ─────────────────────────────────────────
+
+    def _cfg_kpi(self, data, columns, cfg):
+        col = columns[0]
+        value = data[0][col]
+        cfg['config'] = {
+            'value': value,
+            'label': col.replace('_', ' ').title(),
+            'format': 'number' if isinstance(value, (int, float)) else 'text',
+        }
         if len(columns) > 1:
-            config['config']['trend'] = data[0][columns[1]]
-        
-        return config
-    
-    def _config_line_area(self, data: List[Dict], columns: List[str], config: Dict, chart_type: str) -> Dict:
-        """Configure line or area chart"""
-        # Find date column
-        date_col = None
-        for col in columns:
-            if self._is_date_column(col):
-                date_col = col
-                break
-        
-        if not date_col:
-            date_col = columns[0]
-        
-        # Find numeric column
-        value_col = None
-        for col in columns:
-            if col != date_col and self._is_numeric_column(col, data):
-                value_col = col
-                break
-        
-        if not value_col:
-            value_col = columns[1] if len(columns) > 1 else columns[0]
-        
-        config['config'] = {
+            cfg['config']['trend'] = data[0][columns[1]]
+        return cfg
+
+    def _cfg_line_area(self, data, columns, cfg, chart_type):
+        date_col = next((c for c in columns if self._is_date(c)), columns[0])
+        value_col = next(
+            (c for c in columns if c != date_col and self._is_numeric(c, data)),
+            columns[1] if len(columns) > 1 else columns[0]
+        )
+        cfg['config'] = {
             'xAxis': date_col,
             'yAxis': value_col,
             'xLabel': date_col.replace('_', ' ').title(),
             'yLabel': value_col.replace('_', ' ').title(),
-            'color': '#3b82f6',
-            'curved': chart_type == 'area'
+            'color': '#6366f1',
+            'curved': True,
         }
-        
-        return config
-    
-    def _config_bar(self, data: List[Dict], columns: List[str], config: Dict, query: str) -> Dict:
-        """Configure bar chart"""
-        # Find category column (usually first column or name column)
-        category_col = columns[0]
-        for col in columns:
-            if 'name' in col.lower() or 'category' in col.lower():
-                category_col = col
-                break
-        
-        # Find value column — must be a different column AND numeric
-        value_col = None
-        for col in columns:
-            if col != category_col and self._is_numeric_column(col, data):
-                value_col = col
+        return cfg
+
+    def _cfg_bar(self, data, columns, cfg):
+        # category column: prefer name/category/label columns
+        cat_col = columns[0]
+        for c in columns:
+            if any(kw in c.lower() for kw in ['name', 'category', 'label', 'type', 'region', 'country', 'city']):
+                cat_col = c
                 break
 
-        # No numeric column found — fall back to table so the data is still useful
-        if value_col is None:
-            config['type'] = 'table'
-            return self._config_table(data, columns, config)
+        val_col = next(
+            (c for c in columns if c != cat_col and self._is_numeric(c, data)),
+            None
+        )
+        if val_col is None:
+            return self._cfg_table(data, columns, cfg)
 
-        # Determine if horizontal (for rankings like "top 10")
-        is_horizontal = 'top' in query.lower() or 'bottom' in query.lower() or 'ranking' in query.lower()
+        query_lower = cfg.get('title', '').lower()
+        is_horizontal = any(kw in query_lower for kw in ['top', 'bottom', 'ranking', 'best', 'worst', 'highest', 'lowest'])
 
-        config['config'] = {
-            'xAxis': value_col if is_horizontal else category_col,
-            'yAxis': category_col if is_horizontal else value_col,
-            'xLabel': (value_col if is_horizontal else category_col).replace('_', ' ').title(),
-            'yLabel': (category_col if is_horizontal else value_col).replace('_', ' ').title(),
-            'color': '#3b82f6',
-            'horizontal': is_horizontal
+        cfg['config'] = {
+            'xAxis': val_col if is_horizontal else cat_col,
+            'yAxis': cat_col if is_horizontal else val_col,
+            'xLabel': (val_col if is_horizontal else cat_col).replace('_', ' ').title(),
+            'yLabel': (cat_col if is_horizontal else val_col).replace('_', ' ').title(),
+            'color': '#6366f1',
+            'horizontal': is_horizontal,
         }
+        return cfg
 
-        return config
-    
-    def _config_pie(self, data: List[Dict], columns: List[str], config: Dict) -> Dict:
-        """Configure pie chart"""
-        # First column is label, second is value
+    def _cfg_pie_donut(self, data, columns, cfg):
         label_col = columns[0]
-        value_col = columns[1] if len(columns) > 1 else columns[0]
-        
-        # Find numeric column for value
-        for col in columns:
-            if col != label_col and self._is_numeric_column(col, data):
-                value_col = col
-                break
-        
-        config['config'] = {
+        val_col = next(
+            (c for c in columns if c != label_col and self._is_numeric(c, data)),
+            columns[1] if len(columns) > 1 else columns[0]
+        )
+        cfg['config'] = {
             'labelKey': label_col,
-            'valueKey': value_col,
-            'colors': ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#6366f1']
+            'valueKey': val_col,
+            'colors': ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#f43f5e'],
         }
-        
-        return config
-    
-    def _config_scatter(self, data: List[Dict], columns: List[str], config: Dict) -> Dict:
-        """Configure scatter plot"""
-        numeric_cols = [col for col in columns if self._is_numeric_column(col, data)]
-        
-        if len(numeric_cols) < 2:
-            numeric_cols = columns[:2]
-        
-        config['config'] = {
-            'xAxis': numeric_cols[0],
-            'yAxis': numeric_cols[1],
-            'xLabel': numeric_cols[0].replace('_', ' ').title(),
-            'yLabel': numeric_cols[1].replace('_', ' ').title(),
-            'color': '#3b82f6'
+        return cfg
+
+    def _cfg_scatter(self, data, columns, cfg):
+        numeric = [c for c in columns if self._is_numeric(c, data)]
+        x, y = (numeric[0], numeric[1]) if len(numeric) >= 2 else (columns[0], columns[1] if len(columns) > 1 else columns[0])
+        z = numeric[2] if len(numeric) >= 3 else None
+        cfg['config'] = {
+            'xAxis': x,
+            'yAxis': y,
+            'xLabel': x.replace('_', ' ').title(),
+            'yLabel': y.replace('_', ' ').title(),
+            'color': '#6366f1',
         }
-        
-        return config
-    
-    def _config_table(self, data: List[Dict], columns: List[str], config: Dict) -> Dict:
-        """Configure data table"""
-        config['config'] = {
-            'columns': [col.replace('_', ' ').title() for col in columns],
+        if z:
+            cfg['config']['zAxis'] = z
+        return cfg
+
+    def _cfg_treemap(self, data, columns, cfg):
+        name_col = next((c for c in columns if any(kw in c.lower() for kw in ['name', 'category', 'label'])), columns[0])
+        val_col = next((c for c in columns if c != name_col and self._is_numeric(c, data)), columns[1] if len(columns) > 1 else columns[0])
+        cfg['config'] = {
+            'nameKey': name_col,
+            'valueKey': val_col,
+        }
+        return cfg
+
+    def _cfg_funnel(self, data, columns, cfg):
+        name_col = columns[0]
+        val_col = next((c for c in columns if c != name_col and self._is_numeric(c, data)), columns[1] if len(columns) > 1 else columns[0])
+        cfg['config'] = {
+            'nameKey': name_col,
+            'valueKey': val_col,
+        }
+        return cfg
+
+    def _cfg_radar(self, data, columns, cfg):
+        subject_col = next(
+            (c for c in columns if not self._is_numeric(c, data)),
+            columns[0]
+        )
+        value_keys = [c for c in columns if c != subject_col and self._is_numeric(c, data)]
+        cfg['config'] = {
+            'subjectKey': subject_col,
+            'valueKeys': value_keys,
+        }
+        return cfg
+
+    def _cfg_tornado(self, data, columns, cfg):
+        cat_col = next(
+            (c for c in columns if not self._is_numeric(c, data)),
+            columns[0]
+        )
+        numeric_cols = [c for c in columns if c != cat_col and self._is_numeric(c, data)]
+        cfg['config'] = {
+            'categoryKey': cat_col,
+            'leftKey': numeric_cols[0] if numeric_cols else columns[1],
+            'rightKey': numeric_cols[1] if len(numeric_cols) >= 2 else (numeric_cols[0] if numeric_cols else columns[1]),
+        }
+        return cfg
+
+    def _cfg_table(self, data, columns, cfg):
+        cfg['type'] = 'table'
+        cfg['config'] = {
+            'columns': [c.replace('_', ' ').title() for c in columns],
             'sortable': True,
-            'pagination': len(data) > 20
+            'pagination': len(data) > 20,
         }
-        
-        return config
-    
-    def _generate_title(self, query: str, chart_type: str) -> str:
-        """Generate a readable title from the query"""
-        # Remove common SQL words
-        title = query.lower()
-        remove_words = ['show', 'me', 'get', 'find', 'what', 'is', 'the', 'a', 'an']
-        
-        for word in remove_words:
-            title = title.replace(f' {word} ', ' ')
-        
-        # Capitalize first letter of each word
-        title = ' '.join(word.capitalize() for word in title.split())
-        
-        return title.strip()
+        return cfg
+
+    # ── Title generation ─────────────────────────────────────────────────
+
+    def _title(self, query: str, chart_type: str) -> str:
+        stop = {'show', 'me', 'get', 'find', 'what', 'is', 'the', 'a', 'an', 'of', 'for', 'by', 'give', 'display'}
+        words = [w for w in query.lower().split() if w not in stop]
+        title = ' '.join(words).strip()
+        return title.title() if title else chart_type.replace('_', ' ').title()
 
 
-# Singleton instance
+# Singleton
 chart_recommender = ChartRecommender()
 
 __all__ = ['ChartRecommender', 'chart_recommender']
