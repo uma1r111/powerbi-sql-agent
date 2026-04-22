@@ -34,7 +34,6 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
             observerRef.current = null;
         }
         if (node) {
-            // Set initial width immediately on mount
             setGridWidth(node.getBoundingClientRect().width || 800);
             const observer = new ResizeObserver(entries => {
                 for (const entry of entries) {
@@ -49,8 +48,6 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
     }, []);
 
     useEffect(() => {
-        // refreshDashboard: pull current cache (after a new chart was added by a query or restore)
-        // Use the ref so we always invoke the latest function without stale closures
         const handleRefresh = () => refreshFromCurrentRef.current?.();
         window.addEventListener('refreshDashboard', handleRefresh);
         return () => window.removeEventListener('refreshDashboard', handleRefresh);
@@ -62,18 +59,46 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
             setError(null);
             setActiveFilter(null);
             const token = sessionStorage.getItem('token');
-            const response = await fetch(
+
+            // ── Step 1: Try loading existing dashboard from Redis first ──
+            const currentResponse = await fetch(
+                `http://localhost:8000/api/dashboard/current?session_id=${sessionId}`,
+                { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+
+            if (currentResponse.ok) {
+                const currentData = await currentResponse.json();
+
+                if (currentData?.dashboard?.charts?.length > 0) {
+                    // Redis has data — use it directly, no regeneration needed
+                    const filteredCharts = currentData.dashboard.charts.filter(
+                        chart => !removedChartIds.has(chart.chart_id)
+                    );
+                    setDashboard({ ...currentData.dashboard, charts: filteredCharts });
+                    if (onChartsLoaded && filteredCharts.length > 0) onChartsLoaded(filteredCharts);
+                    console.log(`✅ Dashboard loaded from Redis cache (${filteredCharts.length} charts)`);
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            // ── Step 2: Nothing in Redis — generate fresh dashboard ──
+            console.log('📊 No cached dashboard found — generating fresh...');
+            const initialResponse = await fetch(
                 `http://localhost:8000/api/dashboard/initial?session_id=${sessionId}`,
                 { headers: { 'Authorization': `Bearer ${token}` } }
             );
-            if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            const data = await response.json();
+
+            if (!initialResponse.ok) throw new Error(`HTTP ${initialResponse.status}: ${initialResponse.statusText}`);
+
+            const data = await initialResponse.json();
             if (data.dashboard) {
                 const filteredCharts = data.dashboard.charts.filter(
                     chart => !removedChartIds.has(chart.chart_id)
                 );
                 setDashboard({ ...data.dashboard, charts: filteredCharts });
                 if (onChartsLoaded && filteredCharts.length > 0) onChartsLoaded(filteredCharts);
+                console.log(`✅ Fresh dashboard generated (${filteredCharts.length} charts)`);
             }
         } catch (err) {
             setError(err.message);
@@ -83,7 +108,6 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
     };
 
     // Pull the cached dashboard without regenerating it (used after adding/restoring charts)
-    // Keep the ref in sync so the stable event listener always calls the latest version
     refreshFromCurrentRef.current = async () => {
         try {
             const token = sessionStorage.getItem('token');
@@ -130,7 +154,6 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
         }
     };
 
-    // Cross-filter: toggle selection on click
     const handleChartFilter = (sourceChartId, key, value) => {
         setActiveFilter(prev =>
             prev?.sourceChartId === sourceChartId &&

@@ -1,10 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, LogOut, MessageSquare, Database, Clock, User, Menu, BarChart2, MessageCircle, Search, Trash2, Plus, Edit2, Check, X, Code, Copy, ChevronDown, PieChart } from 'lucide-react';
 import axios from 'axios';
 import DashboardContainer from './components/Dashboard/DashboardContainer';
 import VisualizationHistory from './components/VisualizationHistory';
 
 const API_URL = 'http://localhost:8000/api';
+
+const DEFAULT_WELCOME_MESSAGE = {
+  type: 'ai',
+  content: "Hello! I'm IntelliQuery AI. Ask me anything about your data — I can run queries, generate insights, and explain results.",
+  timestamp: new Date().toISOString()
+};
+
+const DEFAULT_CONVERSATION = {
+  id: 1,
+  title: 'New Conversation',
+  messages: [DEFAULT_WELCOME_MESSAGE],
+  charts: [],
+  lastUpdated: new Date().toISOString()
+};
 
 // ─── Login Page ──────────────────────────────────────────────────────
 const LoginPage = ({ onLogin }) => {
@@ -82,10 +96,7 @@ const LoginPage = ({ onLogin }) => {
               {['sameed', 'izma', 'umair'].map((name) => (
                 <button
                   key={name}
-                  onClick={() => {
-                    setEmail(`${name}@intelliquery.com`);
-                    setPassword('1234');
-                  }}
+                  onClick={() => { setEmail(`${name}@intelliquery.com`); setPassword('1234'); }}
                   className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg transition-colors capitalize"
                 >
                   {name}
@@ -99,7 +110,7 @@ const LoginPage = ({ onLogin }) => {
   );
 };
 
-// ─── Chat Panel (right side) ─────────────────────────────────────────
+// ─── Chat Panel ──────────────────────────────────────────────────────
 const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCreated }) => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -119,7 +130,7 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
   const sendQuery = async () => {
     if (!input.trim() || loading) return;
     const queryText = input;
-    const userMsg = { type: 'user', content: queryText, timestamp: new Date() };
+    const userMsg = { type: 'user', content: queryText, timestamp: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
@@ -137,36 +148,21 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
         results: response.data.results || [],
         execution_time: response.data.execution_time,
         chart: response.data.chart,
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, aiMsg]);
 
-      // Store chart in conversation history
       if (response.data.chart && onChartCreated) {
-        onChartCreated({
-          ...response.data.chart,
-          query: queryText,
-          created_at: new Date().toISOString()
-        });
+        onChartCreated({ ...response.data.chart, query: queryText, created_at: new Date().toISOString() });
       }
 
-      // Trigger dashboard refresh
       if (response.data.chart) {
-        console.log('📊 Chart created, triggering dashboard refresh');
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('refreshDashboard'));
-        }, 500);
+        setTimeout(() => window.dispatchEvent(new CustomEvent('refreshDashboard')), 500);
       }
-
     } catch (error) {
       const detail = error.response?.data?.detail;
-      const errMsg = typeof detail === 'string'
-        ? detail
-        : 'Something went wrong. Please try again or rephrase your question.';
-      setMessages(prev => [
-        ...prev,
-        { type: 'error', content: errMsg, timestamp: new Date() }
-      ]);
+      const errMsg = typeof detail === 'string' ? detail : 'Something went wrong. Please try again or rephrase your question.';
+      setMessages(prev => [...prev, { type: 'error', content: errMsg, timestamp: new Date().toISOString() }]);
     } finally {
       setLoading(false);
     }
@@ -174,7 +170,6 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
 
   return (
     <div className="flex flex-col h-full bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      {/* Header */}
       <div className="bg-blue-600 px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
@@ -187,22 +182,10 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3" style={{ minHeight: 0 }}>
         {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            ref={(el) => { messageRefs.current[idx] = el; }}
-            className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[92%] rounded-lg px-3 py-2 text-sm ${msg.type === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : msg.type === 'error'
-                    ? 'bg-red-50 border border-red-200 text-red-800'
-                    : 'bg-gray-50 border border-gray-200 text-gray-800'
-                }`}
-            >
+          <div key={idx} ref={(el) => { messageRefs.current[idx] = el; }} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[92%] rounded-lg px-3 py-2 text-sm ${msg.type === 'user' ? 'bg-blue-600 text-white' : msg.type === 'error' ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-gray-50 border border-gray-200 text-gray-800'}`}>
               {msg.type === 'error' ? (
                 <div className="flex items-start gap-2">
                   <span className="text-red-500 mt-0.5 shrink-0">⚠</span>
@@ -221,9 +204,7 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
                     <thead>
                       <tr className="bg-gray-100">
                         {Object.keys(msg.results[0]).map((key) => (
-                          <th key={key} className="text-left px-2 py-1 font-semibold text-gray-600 border-b border-gray-200 whitespace-nowrap">
-                            {key}
-                          </th>
+                          <th key={key} className="text-left px-2 py-1 font-semibold text-gray-600 border-b border-gray-200 whitespace-nowrap">{key}</th>
                         ))}
                       </tr>
                     </thead>
@@ -231,9 +212,7 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
                       {msg.results.map((row, i) => (
                         <tr key={i} className="border-b border-gray-100">
                           {Object.values(row).map((val, j) => (
-                            <td key={j} className="px-2 py-1 text-gray-700 whitespace-nowrap">
-                              {val !== null ? String(val) : 'NULL'}
-                            </td>
+                            <td key={j} className="px-2 py-1 text-gray-700 whitespace-nowrap">{val !== null ? String(val) : 'NULL'}</td>
                           ))}
                         </tr>
                       ))}
@@ -242,12 +221,7 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
                 </div>
               )}
 
-              {msg.chart && (
-                <p className="text-xs text-blue-600 mt-2 italic">
-                  📊 Visualization added to dashboard
-                </p>
-              )}
-
+              {msg.chart && <p className="text-xs text-blue-600 mt-2 italic">📊 Visualization added to dashboard</p>}
               {msg.execution_time && msg.execution_time > 0 && (
                 <p className="text-xs text-gray-400 mt-1">Executed in {msg.execution_time.toFixed(2)}s</p>
               )}
@@ -266,7 +240,6 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div className="p-3 border-t border-gray-100 bg-gray-50 shrink-0">
         <div className="flex gap-2">
           <input
@@ -288,13 +261,7 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
         </div>
         <div className="flex gap-1.5 mt-2 flex-wrap">
           {['Top 10 customers', 'Monthly sales trends', 'Products low in stock'].map((q) => (
-            <button
-              key={q}
-              onClick={() => setInput(q)}
-              className="text-xs bg-white border border-gray-200 text-gray-500 px-2 py-0.5 rounded-full hover:bg-gray-50 transition-colors"
-            >
-              {q}
-            </button>
+            <button key={q} onClick={() => setInput(q)} className="text-xs bg-white border border-gray-200 text-gray-500 px-2 py-0.5 rounded-full hover:bg-gray-50 transition-colors">{q}</button>
           ))}
         </div>
       </div>
@@ -313,14 +280,8 @@ const HistoryTab = ({ messages, onClickQuery }) => {
     .filter((msg) => msg.content.toLowerCase().includes(search.toLowerCase()))
     .reverse();
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    alert('SQL copied to clipboard!');
-  };
-
-  const toggleSql = (index) => {
-    setExpandedSql(expandedSql === index ? null : index);
-  };
+  const copyToClipboard = (text) => { navigator.clipboard.writeText(text); alert('SQL copied to clipboard!'); };
+  const toggleSql = (index) => setExpandedSql(expandedSql === index ? null : index);
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -329,16 +290,9 @@ const HistoryTab = ({ messages, onClickQuery }) => {
           <h3 className="text-lg font-bold text-gray-900">Conversation History</h3>
           <p className="text-sm text-gray-400 mt-0.5">All queries in this conversation</p>
         </div>
-
         <div className="relative mb-5">
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search queries..."
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-          />
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search queries..." className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white" />
         </div>
 
         {queryHistory.length === 0 ? (
@@ -346,9 +300,7 @@ const HistoryTab = ({ messages, onClickQuery }) => {
             <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
               <Clock className="w-7 h-7 text-gray-300" />
             </div>
-            <p className="text-sm text-gray-500">
-              {search ? 'No queries match your search.' : 'No queries yet. Ask something in the chat!'}
-            </p>
+            <p className="text-sm text-gray-500">{search ? 'No queries match your search.' : 'No queries yet. Ask something in the chat!'}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -359,77 +311,43 @@ const HistoryTab = ({ messages, onClickQuery }) => {
               const isSqlExpanded = expandedSql === msg.index;
 
               return (
-                <div
-                  key={msg.index}
-                  className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-                >
+                <div key={msg.index} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
-                            #{queryHistory.length - i}
-                          </span>
+                          <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">#{queryHistory.length - i}</span>
                           <span className="text-xs text-gray-400">{timeStr}</span>
-                          {hasResults && (
-                            <span className="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded-full">
-                              {aiResponse.results.length} rows
-                            </span>
-                          )}
-                          {aiResponse?.chart && (
-                            <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full">
-                              📊 Chart
-                            </span>
-                          )}
+                          {hasResults && <span className="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded-full">{aiResponse.results.length} rows</span>}
+                          {aiResponse?.chart && <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full">📊 Chart</span>}
                         </div>
                         <p className="text-sm font-semibold text-gray-900">{msg.content}</p>
                       </div>
-                      <button
-                        onClick={() => onClickQuery(msg.index)}
-                        className="text-gray-400 hover:text-blue-500 transition-colors shrink-0"
-                        title="Jump to query"
-                      >
-                        <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M6 3l5 5-5 5" />
-                        </svg>
+                      <button onClick={() => onClickQuery(msg.index)} className="text-gray-400 hover:text-blue-500 transition-colors shrink-0">
+                        <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 3l5 5-5 5" /></svg>
                       </button>
                     </div>
-
                     {aiResponse?.sql && (
                       <div className="mt-3">
                         <div className="flex items-center justify-between mb-2">
-                          <button
-                            onClick={() => toggleSql(msg.index)}
-                            className="flex items-center gap-2 text-xs font-medium text-gray-600 hover:text-blue-600 transition-colors"
-                          >
+                          <button onClick={() => toggleSql(msg.index)} className="flex items-center gap-2 text-xs font-medium text-gray-600 hover:text-blue-600 transition-colors">
                             <Code className="w-3.5 h-3.5" />
                             <span>{isSqlExpanded ? 'Hide SQL' : 'View SQL'}</span>
                             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isSqlExpanded ? 'rotate-180' : ''}`} />
                           </button>
                           {isSqlExpanded && (
-                            <button
-                              onClick={() => copyToClipboard(aiResponse.sql)}
-                              className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-blue-600 transition-colors"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copy</span>
+                            <button onClick={() => copyToClipboard(aiResponse.sql)} className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-blue-600 transition-colors">
+                              <Copy className="w-3.5 h-3.5" /><span>Copy</span>
                             </button>
                           )}
                         </div>
-
-                        {isSqlExpanded && (
+                        {isSqlExpanded ? (
                           <div className="bg-gray-900 rounded-lg p-3 overflow-x-auto">
-                            <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
-                              {aiResponse.sql}
-                            </pre>
+                            <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">{aiResponse.sql}</pre>
                           </div>
-                        )}
-
-                        {!isSqlExpanded && (
+                        ) : (
                           <div className="bg-gray-50 rounded px-3 py-2">
-                            <p className="text-xs text-gray-500 font-mono truncate">
-                              {aiResponse.sql}
-                            </p>
+                            <p className="text-xs text-gray-500 font-mono truncate">{aiResponse.sql}</p>
                           </div>
                         )}
                       </div>
@@ -449,25 +367,72 @@ const HistoryTab = ({ messages, onClickQuery }) => {
 const Dashboard = ({ user, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeNav, setActiveNav] = useState('dashboard');
-  const [conversations, setConversations] = useState([
-    {
-      id: 1,
-      title: 'New Conversation',
-      messages: [
-        {
-          type: 'ai',
-          content: "Hello! I'm IntelliQuery AI. Ask me anything about your data — I can run queries, generate insights, and explain results.",
-          timestamp: new Date()
-        }
-      ],
-      charts: [],
-      lastUpdated: new Date()
-    }
-  ]);
+  const [conversations, setConversations] = useState([DEFAULT_CONVERSATION]);
   const [activeConvId, setActiveConvId] = useState(1);
   const [scrollToIndex, setScrollToIndex] = useState(null);
   const [editingConvId, setEditingConvId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
+  const [sessionLoading, setSessionLoading] = useState(true);
+
+  // ── Save session to Redis (debounced) ──────────────────────────────
+  const saveTimerRef = useRef(null);
+
+  const saveSession = useCallback((convs, activeId) => {
+    // Debounce — wait 1.5s after last change before saving
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        const token = sessionStorage.getItem('token');
+        await axios.post(
+          `${API_URL}/session/save`,
+          { conversations: convs, active_conv_id: activeId },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log('💾 Session saved to Redis');
+      } catch (e) {
+        console.warn('⚠️ Session save failed (non-critical):', e.message);
+      }
+    }, 1500);
+  }, []);
+
+  // ── Load session on mount ──────────────────────────────────────────
+  useEffect(() => {
+    const loadSession = async () => {
+      try {
+        const token = sessionStorage.getItem('token');
+        const response = await axios.get(
+          `${API_URL}/session/load`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (response.data.success && !response.data.first_login && response.data.session) {
+          const { conversations: savedConvs, active_conv_id } = response.data.session;
+
+          if (savedConvs && savedConvs.length > 0) {
+            // Restore timestamps as Date-compatible strings (they're already ISO strings)
+            setConversations(savedConvs);
+            setActiveConvId(active_conv_id || savedConvs[0].id);
+            console.log(`✅ Session restored — ${savedConvs.length} conversations`);
+          }
+        } else {
+          console.log('👋 First login — starting fresh');
+        }
+      } catch (e) {
+        console.warn('⚠️ Could not load session (non-critical):', e.message);
+      } finally {
+        setSessionLoading(false);
+      }
+    };
+
+    loadSession();
+  }, []);
+
+  // ── Auto-save whenever conversations or activeConvId changes ──────
+  useEffect(() => {
+    if (!sessionLoading) {
+      saveSession(conversations, activeConvId);
+    }
+  }, [conversations, activeConvId, sessionLoading, saveSession]);
 
   const activeConv = conversations.find(c => c.id === activeConvId);
 
@@ -482,39 +447,31 @@ const Dashboard = ({ user, onLogout }) => {
             newTitle = firstUserMsg.content.slice(0, 40) + (firstUserMsg.content.length > 40 ? '...' : '');
           }
         }
-        return { ...conv, messages: newMessages, lastUpdated: new Date(), title: newTitle };
+        return { ...conv, messages: newMessages, lastUpdated: new Date().toISOString(), title: newTitle };
       }
       return conv;
     }));
   };
 
   const handleChartCreated = (chart) => {
-    setConversations(prev => prev.map(conv => {
-      if (conv.id === activeConvId) {
-        return {
-          ...conv,
-          charts: [...(conv.charts || []), chart]
-        };
-      }
-      return conv;
-    }));
+    setConversations(prev => prev.map(conv =>
+      conv.id === activeConvId
+        ? { ...conv, charts: [...(conv.charts || []), chart] }
+        : conv
+    ));
   };
 
   const handleChartsLoaded = (charts) => {
-    // Add initial dashboard charts to visualization history
     setConversations(prev => prev.map(conv => {
-      if (conv.id === activeConvId) {
-        // Only add if charts array is empty (first load)
-        if (!conv.charts || conv.charts.length === 0) {
-          return {
-            ...conv,
-            charts: charts.map(chart => ({
-              ...chart,
-              query: 'Initial Dashboard',
-              created_at: chart.created_at || new Date().toISOString()
-            }))
-          };
-        }
+      if (conv.id === activeConvId && (!conv.charts || conv.charts.length === 0)) {
+        return {
+          ...conv,
+          charts: charts.map(chart => ({
+            ...chart,
+            query: 'Initial Dashboard',
+            created_at: chart.created_at || new Date().toISOString()
+          }))
+        };
       }
       return conv;
     }));
@@ -525,15 +482,9 @@ const Dashboard = ({ user, onLogout }) => {
     const newConv = {
       id: newId,
       title: 'New Conversation',
-      messages: [
-        {
-          type: 'ai',
-          content: "Hello! I'm IntelliQuery AI. Ask me anything about your data — I can run queries, generate insights, and explain results.",
-          timestamp: new Date()
-        }
-      ],
+      messages: [{ ...DEFAULT_WELCOME_MESSAGE, timestamp: new Date().toISOString() }],
       charts: [],
-      lastUpdated: new Date()
+      lastUpdated: new Date().toISOString()
     };
     setConversations(prev => [...prev, newConv]);
     setActiveConvId(newId);
@@ -548,20 +499,13 @@ const Dashboard = ({ user, onLogout }) => {
     }
   };
 
-  const startEditTitle = (convId, currentTitle) => {
-    setEditingConvId(convId);
-    setEditTitle(currentTitle);
-  };
-
+  const startEditTitle = (convId, currentTitle) => { setEditingConvId(convId); setEditTitle(currentTitle); };
   const saveTitle = (convId) => {
     setConversations(prev => prev.map(c => c.id === convId ? { ...c, title: editTitle.trim() || 'New Conversation' } : c));
     setEditingConvId(null);
   };
 
-  const handleHistoryClick = (msgIndex) => {
-    setActiveNav('dashboard');
-    setScrollToIndex(msgIndex);
-  };
+  const handleHistoryClick = (msgIndex) => { setActiveNav('dashboard'); setScrollToIndex(msgIndex); };
 
   useEffect(() => {
     if (scrollToIndex !== null) {
@@ -569,6 +513,18 @@ const Dashboard = ({ user, onLogout }) => {
       return () => clearTimeout(timer);
     }
   }, [scrollToIndex]);
+
+  // Show loading state while restoring session
+  if (sessionLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500 text-sm">Restoring your session...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-50" style={{ fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
@@ -603,10 +559,7 @@ const Dashboard = ({ user, onLogout }) => {
               <button
                 key={item.id}
                 onClick={() => setActiveNav(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${activeNav === item.id
-                    ? 'bg-blue-50 text-blue-600 font-semibold'
-                    : 'text-gray-600 hover:bg-gray-50'
-                  }`}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${activeNav === item.id ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'}`}
               >
                 <item.icon className="w-4 h-4" />
                 {item.label}
@@ -615,7 +568,7 @@ const Dashboard = ({ user, onLogout }) => {
 
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 mt-4">Chats</p>
             <div className="space-y-0.5">
-              {conversations.sort((a, b) => b.lastUpdated - a.lastUpdated).map((conv) => (
+              {conversations.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated)).map((conv) => (
                 <div key={conv.id} className="group relative">
                   {editingConvId === conv.id ? (
                     <div className="flex items-center gap-1 px-2 py-1">
@@ -627,35 +580,22 @@ const Dashboard = ({ user, onLogout }) => {
                         className="flex-1 px-2 py-1 text-xs border border-blue-500 rounded focus:outline-none"
                         autoFocus
                       />
-                      <button onClick={() => saveTitle(conv.id)} className="text-green-600 hover:text-green-700">
-                        <Check className="w-3 h-3" />
-                      </button>
-                      <button onClick={() => setEditingConvId(null)} className="text-red-600 hover:text-red-700">
-                        <X className="w-3 h-3" />
-                      </button>
+                      <button onClick={() => saveTitle(conv.id)} className="text-green-600 hover:text-green-700"><Check className="w-3 h-3" /></button>
+                      <button onClick={() => setEditingConvId(null)} className="text-red-600 hover:text-red-700"><X className="w-3 h-3" /></button>
                     </div>
                   ) : (
                     <button
                       onClick={() => setActiveConvId(conv.id)}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${activeConvId === conv.id
-                          ? 'bg-blue-50 text-blue-600 font-semibold'
-                          : 'text-gray-600 hover:bg-gray-50'
-                        }`}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${activeConvId === conv.id ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'}`}
                     >
                       <MessageSquare className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate flex-1 text-left">{conv.title}</span>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); startEditTitle(conv.id, conv.title); }}
-                          className="text-gray-400 hover:text-gray-600 p-0.5"
-                        >
+                        <button onClick={(e) => { e.stopPropagation(); startEditTitle(conv.id, conv.title); }} className="text-gray-400 hover:text-gray-600 p-0.5">
                           <Edit2 className="w-3 h-3" />
                         </button>
                         {conversations.length > 1 && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id); }}
-                            className="text-gray-400 hover:text-red-600 p-0.5"
-                          >
+                          <button onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id); }} className="text-gray-400 hover:text-red-600 p-0.5">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         )}
@@ -691,18 +631,11 @@ const Dashboard = ({ user, onLogout }) => {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="bg-white border-b border-gray-200 px-5 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-50"
-            >
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-50">
               <Menu className="w-5 h-5" />
             </button>
             <h2 className="text-lg font-bold text-gray-900">
-              {activeNav === 'history'
-                ? 'Conversation History'
-                : activeNav === 'visualizations'
-                  ? 'Visualization History'
-                  : 'Dashboard'}
+              {activeNav === 'history' ? 'Conversation History' : activeNav === 'visualizations' ? 'Visualization History' : 'Dashboard'}
             </h2>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -743,8 +676,6 @@ const Dashboard = ({ user, onLogout }) => {
               }}
             />
           )}
-          {/* DashboardContainer stays mounted across tab switches so it can receive
-              refreshDashboard events dispatched from the Visualizations tab */}
           <div className={`flex-1 overflow-hidden${activeNav === 'dashboard' ? '' : ' hidden'}`}>
             <DashboardContainer
               sessionId={`session-${activeConvId}`}
@@ -767,14 +698,13 @@ const Dashboard = ({ user, onLogout }) => {
   );
 };
 
+// ─── App Root ────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
     const savedUser = sessionStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
+    if (savedUser) setUser(JSON.parse(savedUser));
   }, []);
 
   const handleLogout = () => {
