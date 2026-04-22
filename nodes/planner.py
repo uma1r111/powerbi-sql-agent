@@ -50,7 +50,7 @@ class PlannerNode:
         self.description = "Generates execution plans and SQL queries using schema context and few-shot learning"
         
         # Initialize LLM (you'll need to set your groq API key)
-        self.llm = ChatGroq(model="llama-3.1-70b-versatile", temperature=0)
+        self.llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
         
         # Initialize few-shot example selector
         self._initialize_example_selector()

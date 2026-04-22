@@ -1,0 +1,22 @@
+
+#PASTE IN YOUR TERMINAL
+# 1. Get the token
+$resp = Invoke-WebRequest -Uri "http://localhost:8000/api/login" `
+    -Method POST `
+    -ContentType "application/json" `
+    -Body '{"email":"sameed@intelliquery.com","password":"1234"}' `
+    -UseBasicParsing
+$token = ($resp.Content | ConvertFrom-Json).token
+
+# 2. Upload the file using curl.exe
+curl.exe -X POST http://localhost:8000/api/rag/upload `
+    -H "Authorization: Bearer $token" `
+    -F "file=@intelliquery_policy.pdf"
+
+# 3. Query the RAG agent
+Invoke-WebRequest -Uri "http://localhost:8000/api/rag/query" `
+    -Method POST `
+    -Headers @{ Authorization = "Bearer $token"; "Content-Type" = "application/json" } `
+    -Body '{"question":"What is the naming convention for DAX measures?"}' `
+    -UseBasicParsing | Select-Object -ExpandProperty Content
+

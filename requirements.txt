@@ -15,3 +15,7 @@ fastembed
 mcp langchain-mcp-adapters
 redis >= 5.0.0
 langchain-groq
+pypdf
+duckduckgo-search
+langchain-ollama
+docx2txt

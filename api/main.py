@@ -3,7 +3,7 @@ FastAPI Backend for IntelliQuery
 Provides REST API for the SQL Agent with Dashboard Support
 """
 
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 import jwt
 import os
 import sys
+import shutil
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -24,6 +26,8 @@ from tools.dashboard_manager import dashboard_manager
 from tools.chart_recommender import chart_recommender
 from database.redis_client import RedisClient
 from database.session_store import user_session_store
+from rag.document_store import document_store
+from rag.rag_agent import query_rag_agent
 
 load_dotenv()
 
@@ -324,6 +328,42 @@ async def get_session_stats(current_user: User = Depends(get_current_user)):
 
 
 # ------------------------------------------------------------------ #
+#  Query routing                                                       #
+# ------------------------------------------------------------------ #
+
+# Terms that strongly indicate the question is about YOUR DATABASE DATA.
+# If none of these appear and docs are uploaded, we route to RAG instead.
+_DB_SIGNALS = [
+    # Northwind entities
+    "customer", "order", "product", "employee", "supplier", "shipper",
+    "category", "territory", "region",
+    # Business metrics
+    "revenue", "sales", "profit", "quantity", "stock", "inventory",
+    "discount", "freight", "price",
+    # Explicit data requests
+    "show me", "list", "how many", "count", "top ", "bottom ",
+    "best selling", "worst", "compare", "trend", "chart", "graph",
+    "monthly", "yearly", "quarterly", "by country", "by category",
+]
+
+def _is_rag_query(question: str) -> bool:
+    """
+    Route to RAG when:
+      1. Documents have been uploaded, AND
+      2. The question has no clear signal that it's about the database.
+
+    This means ANY question that isn't obviously about Northwind data will
+    be answered from uploaded PDFs + web — so users never need to know
+    which endpoint to call.
+    """
+    if not document_store.has_documents():
+        return False
+    q = question.lower()
+    # If there's a clear DB signal, let the SQL agent handle it
+    return not any(signal in q for signal in _DB_SIGNALS)
+
+
+# ------------------------------------------------------------------ #
 #  Query endpoint                                                      #
 # ------------------------------------------------------------------ #
 
@@ -334,6 +374,22 @@ async def process_query(
 ):
     try:
         start_time = datetime.now()
+
+        # ── RAG route ─────────────────────────────────────────────────────────
+        if _is_rag_query(request.question):
+            print(f"\n📄 RAG route detected for: '{request.question}'")
+            rag_result = query_rag_agent(request.question)
+            sources_tag = " + ".join(rag_result["sources_used"]) or "none"
+            explanation = (
+                f"{rag_result['answer']}\n\n"
+                f"*(Sources: {sources_tag} | {rag_result['steps']} tool call(s))*"
+            )
+            return QueryResponse(
+                success=True, sql=None, results=[], explanation=explanation,
+                warnings=[], error=None,
+                execution_time=(datetime.now() - start_time).total_seconds(),
+                chart=None,
+            )
 
         session_context = _get_session_context(request.session_id)
         last_query = session_context.get("query", "")
@@ -601,6 +657,103 @@ async def health_check():
         "dashboard": "enabled",
         "redis": redis_client.get_stats()
     }
+
+
+# ── RAG models ────────────────────────────────────────────────────────────────
+
+class RAGQueryRequest(BaseModel):
+    question: str
+
+class RAGQueryResponse(BaseModel):
+    answer: str
+    sources_used: List[str]
+    steps: int
+
+class RAGUploadResponse(BaseModel):
+    filename: str
+    chunks_indexed: int
+    total_chunks: int
+    message: str
+
+class RAGSourcesResponse(BaseModel):
+    sources: List[str]
+    total_chunks: int
+
+
+# ── RAG endpoints ─────────────────────────────────────────────────────────────
+
+@app.post("/api/rag/upload", response_model=RAGUploadResponse)
+async def upload_document(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Upload a PDF to be indexed in the company knowledge base.
+    Requires authentication. Supports PDF files only.
+    """
+    from rag.document_store import SUPPORTED_EXTENSIONS
+    ext = Path(file.filename).suffix.lower()
+    if ext not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{ext}'. Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
+        )
+
+    # Save to a temp file so PyPDFLoader can read it
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+
+    try:
+        chunks_added = document_store.add_document(tmp_path, source_label=file.filename)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to index PDF: {str(e)}")
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    return RAGUploadResponse(
+        filename=file.filename,
+        chunks_indexed=chunks_added,
+        total_chunks=document_store.chunk_count,
+        message=f"Successfully indexed '{file.filename}' ({chunks_added} chunks).",
+    )
+
+
+@app.post("/api/rag/query", response_model=RAGQueryResponse)
+async def rag_query(
+    request: RAGQueryRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Ask a question answered from company documents (PDFs) or the web.
+    The agent searches company docs first; falls back to web search if needed.
+    """
+    if not request.question.strip():
+        raise HTTPException(status_code=400, detail="Question cannot be empty.")
+
+    result = query_rag_agent(request.question)
+    return RAGQueryResponse(**result)
+
+
+@app.get("/api/rag/sources", response_model=RAGSourcesResponse)
+async def list_rag_sources(current_user: dict = Depends(get_current_user)):
+    """List all indexed document sources and total chunk count."""
+    return RAGSourcesResponse(
+        sources=document_store.list_sources(),
+        total_chunks=document_store.chunk_count,
+    )
+
+
+@app.delete("/api/rag/sources/{source_name}")
+async def delete_rag_source(
+    source_name: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Remove a document from the knowledge base by its filename."""
+    deleted = document_store.delete_source(source_name)
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail=f"Source '{source_name}' not found.")
+    return {"deleted_chunks": deleted, "source": source_name}
 
 
 if __name__ == "__main__":
