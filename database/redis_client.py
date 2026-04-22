@@ -222,3 +222,4 @@ class RedisClient:
             }
         except Exception as e:
             return {"status": "error", "detail": str(e)}
+            
