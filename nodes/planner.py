@@ -7,7 +7,7 @@ from datetime import datetime
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, FewShotChatMessagePromptTemplate
 from langchain_core.example_selectors import SemanticSimilarityExampleSelector
 from langchain_chroma import Chroma
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_groq import ChatGroq
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -27,7 +27,7 @@ from tools.error_manager import error_manager
 import os
 from dotenv import load_dotenv
 load_dotenv()
-os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
+os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -43,8 +43,8 @@ class PlannerNode:
         self.node_name = "planner"
         self.description = "Generates execution plans and SQL queries using schema context and few-shot learning"
         
-        # Initialize LLM (you'll need to set your Gemini API key)
-        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+        # Initialize LLM (you'll need to set your groq API key)
+        self.llm = ChatGroq(model="llama-3.1-70b-versatile", temperature=0)
         
         # Initialize few-shot example selector
         self._initialize_example_selector()
