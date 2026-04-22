@@ -11,7 +11,8 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, FewShotChatMessagePromptTemplate
 from langchain_core.example_selectors import SemanticSimilarityExampleSelector
 from langchain_chroma import Chroma
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
+from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 # We use FastEmbed for local embeddings to avoid API costs/limits on embeddings
 from langchain_community.embeddings import FastEmbedEmbeddings
@@ -24,6 +25,12 @@ from state.plan_state import ExecutionPlan, PlanManager
 from database.sample_queries import SAMPLE_QUERIES, get_queries_with_tables
 from database.relationships import COMMON_JOIN_PATTERNS
 from tools.error_manager import error_manager
+
+# Google Gemini API imports
+import os
+from dotenv import load_dotenv
+load_dotenv()
+os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,15 +49,54 @@ class PlannerNode:
         self.node_name = "planner"
         self.description = "Generates execution plans and SQL queries using schema context and few-shot learning"
         
-        # Initialize LLM
-        # Note: Using temperature=0 for consistent SQL generation
-        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+        # Initialize LLM (you'll need to set your groq API key)
+        self.llm = ChatGroq(model="llama-3.1-70b-versatile", temperature=0)
         
         # Initialize few-shot example selector
         self._initialize_example_selector()
         
         # Initialize prompts
         self._initialize_prompts()
+
+    def _fetch_database_rules(self) -> str:
+        """
+        NEW METHOD: Fetch Northwind-specific query rules from MCP.
+        Includes fallback to local file if MCP unavailable.
+        
+        Returns:
+            Database-specific rules as formatted string
+        """
+        try:
+            from client.mcp_client import mcp_client
+            
+            # Fetch rules from MCP server (will use cache after first call)
+            rules = mcp_client.get_prompt("northwind_query_rules")
+            
+            if rules:
+                logger.info("✅ Loaded Northwind query rules from MCP")
+                return rules
+            else:
+                logger.warning("⚠️ MCP returned empty rules, using fallback")
+                return self._load_fallback_rules()
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch MCP rules: {e}")
+            return self._load_fallback_rules()
+
+    def _load_fallback_rules(self) -> str:
+        """
+        Fallback: Load rules from local file if MCP unavailable.
+        """
+        from pathlib import Path
+        fallback_path = Path(__file__).parent.parent / "config" / "northwind_query_rules_fallback.txt"
+        
+        if fallback_path.exists():
+            with open(fallback_path, "r", encoding="utf-8") as f:
+                logger.info("📄 Loaded fallback rules from local file")
+                return f.read()
+        
+        logger.error("❌ No fallback rules found!")
+        return ""    
     
     def _initialize_example_selector(self):
         """Initialize the few-shot example selector with our sample queries"""
@@ -279,12 +325,25 @@ Generate ONLY the SQL query, no explanations."""
         Generate SQL query with error context if retrying
         """
         logger.info("⚡ Generating SQL query")
+
+        # --- THE "AMNESIA" FIX GOES HERE ---
+        # Clear out the old errors so the graph doesn't short-circuit on retry
+        if state.needs_correction:
+            logger.info("🧹 Clearing previous errors for retry attempt")
+            if hasattr(state, 'errors'):
+                state.errors = []
+            if hasattr(state, 'error_dict'):
+                state.error_dict = {}
+        # -----------------------------------
         
         try:
             # Prepare context for the prompt
             context = self._prepare_prompt_context(state)
             
-            # Add error recovery guidance if this is a retry
+            # NEW: Fetch database-specific rules from MCP
+            db_rules = self._fetch_database_rules()
+            
+            # Existing error recovery guidance
             error_guidance = ""
             if state.needs_correction and state.correction_attempts > 0:
                 error_guidance = self._get_error_recovery_guidance(state)
@@ -297,8 +356,17 @@ Generate ONLY the SQL query, no explanations."""
                 input_variables=["input"]
             )
             
-            # Enhance main prompt with error guidance
-            enhanced_prompt_template = self.main_prompt_template
+            # NEW: Build enhanced prompt with MCP rules at the START
+            enhanced_prompt_template = ""
+            
+            # 1. Database rules go FIRST (sets mental model)
+            if db_rules:
+                enhanced_prompt_template = db_rules + "\n\n"
+            
+            # 2. Then the standard prompt
+            enhanced_prompt_template += self.main_prompt_template
+            
+            # 3. Error recovery goes LAST (most recent context)
             if error_guidance:
                 enhanced_prompt_template += f"\n\n{error_guidance}"
             
@@ -333,16 +401,31 @@ Generate ONLY the SQL query, no explanations."""
 
     def _get_error_recovery_guidance(self, state: AgentState) -> str:
         """
-        Get error recovery guidance for the LLM based on previous errors
+        Get error recovery guidance for the LLM based on previous errors.
+        
+        ENHANCED: Now includes historical error context from MCP to prevent retry loops.
+        
+        Args:
+            state: Current agent state
+        
+        Returns:
+            Formatted error recovery guidance for LLM prompt
         """
-        if not state.errors:
+        if not state.errors and not hasattr(state, 'error_history'):
             return ""
         
         # Get the most recent error details
         validation_results = state.validation_results
         execution_results = state.execution_results
         
-        guidance_parts = ["PREVIOUS ATTEMPT FAILED - ERROR RECOVERY:"]
+        guidance_parts = ["=" * 70]
+        guidance_parts.append("PREVIOUS ATTEMPT FAILED - ERROR RECOVERY")
+        guidance_parts.append("=" * 70)
+        
+        # ========================================================================
+        # SECTION 1: IMMEDIATE ERROR (What just happened)
+        # ========================================================================
+        guidance_parts.append("\n📍 IMMEDIATE ERROR (Current Attempt):")
         
         # Check for validation errors with details
         if validation_results and "error_details" in validation_results:
@@ -370,7 +453,109 @@ Generate ONLY the SQL query, no explanations."""
     - Business logic (use correct calculations)
     """)
         
+        # ========================================================================
+        # SECTION 2: HISTORICAL PATTERN (What keeps failing)
+        # ========================================================================
+        # NEW: Add MCP error history if available
+        if hasattr(state, 'error_history') and state.error_history:
+            guidance_parts.append("\n" + "=" * 70)
+            guidance_parts.append("📊 HISTORICAL ERROR PATTERN (Recent Failures):")
+            guidance_parts.append("=" * 70)
+            guidance_parts.append(state.error_history)
+            
+            # Pattern detection hint
+            error_count = state.error_history.count("Error #")
+            if error_count >= 3:
+                guidance_parts.append("\n⚠️ WARNING: You are stuck in a retry loop!")
+                guidance_parts.append("The same type of error is repeating. You MUST:")
+                guidance_parts.append("1. Read the FULL error history above")
+                guidance_parts.append("2. Identify the PATTERN (not just the last error)")
+                guidance_parts.append("3. Try a COMPLETELY DIFFERENT approach")
+                guidance_parts.append("4. If uncertain about schema, use get_database_schema tool")
+        
+        # ========================================================================
+        # SECTION 3: RETRY STRATEGY (What to do now)
+        # ========================================================================
+        guidance_parts.append("\n" + "=" * 70)
+        guidance_parts.append("🔧 REQUIRED ACTIONS:")
+        guidance_parts.append("=" * 70)
+        
+        # Determine retry strategy based on error type
+        retry_strategy = self._determine_retry_strategy(state)
+        guidance_parts.append(retry_strategy)
+        
         return "\n".join(guidance_parts)
+
+    def _determine_retry_strategy(self, state: AgentState) -> str:
+        """
+        Determine the best retry strategy based on error patterns.
+        
+        Args:
+            state: Current agent state
+        
+        Returns:
+            Specific retry instructions for the LLM
+        """
+        # Check if we have historical errors
+        has_history = hasattr(state, 'error_history') and state.error_history
+        attempt_num = state.correction_attempts + 1
+        
+        # Build strategy based on attempt number and error type
+        strategy_parts = []
+        
+        # First retry - simple fix
+        if attempt_num == 1:
+            strategy_parts.append("1. Review the immediate error above")
+            strategy_parts.append("2. Apply the suggested fix")
+            strategy_parts.append("3. Verify table/column names against schema")
+        
+        # Second retry - deeper analysis
+        elif attempt_num == 2:
+            strategy_parts.append("1. The simple fix didn't work - review your approach")
+            strategy_parts.append("2. Compare your query structure to the few-shot examples")
+            strategy_parts.append("3. Verify you're using correct JOINs and relationships")
+            
+            if has_history:
+                strategy_parts.append("4. Check the error history - are you making the same mistake twice?")
+        
+        # Third retry - complete rethink
+        else:
+            strategy_parts.append("⚠️ THIS IS YOUR LAST ATTEMPT!")
+            strategy_parts.append("1. STOP and read the FULL error history")
+            strategy_parts.append("2. Your approach is fundamentally wrong - start from scratch")
+            strategy_parts.append("3. Break down the user's question into simpler parts")
+            strategy_parts.append("4. Use get_database_schema tool to verify exact schema")
+            strategy_parts.append("5. Generate a MINIMAL query first, then build up")
+            
+            if has_history:
+                strategy_parts.append("6. The pattern in your errors shows what NOT to do - avoid it!")
+        
+        # Add context-specific hints
+        if state.execution_results and "error" in state.execution_results:
+            error_msg = state.execution_results["error"].lower()
+            
+            # Column errors
+            if "column" in error_msg and "does not exist" in error_msg:
+                strategy_parts.append("\n💡 HINT: Column name error detected")
+                strategy_parts.append("   - Use EXACT column names from schema")
+                strategy_parts.append("   - Common mistake: 'country' vs 'ship_country'")
+                strategy_parts.append("   - When in doubt: call get_database_schema tool")
+            
+            # Table errors
+            elif "relation" in error_msg or "table" in error_msg:
+                strategy_parts.append("\n💡 HINT: Table name error detected")
+                strategy_parts.append("   - Valid tables: customers, orders, order_details, products, etc.")
+                strategy_parts.append("   - Check for typos in table names")
+            
+            # Syntax errors
+            elif "syntax" in error_msg:
+                strategy_parts.append("\n💡 HINT: SQL syntax error detected")
+                strategy_parts.append("   - Check parentheses balance")
+                strategy_parts.append("   - Verify comma placement")
+                strategy_parts.append("   - Use PostgreSQL syntax (not MySQL/SQLite)")
+        
+        return "\n".join(strategy_parts)
+
     
     def _prepare_prompt_context(self, state: AgentState) -> Dict[str, str]:
         """Prepare context for SQL generation prompt"""

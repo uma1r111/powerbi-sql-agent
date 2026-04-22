@@ -1,0 +1,3 @@
+----------------------- For testing MCP -----------------------
+
+npx @modelcontextprotocol/inspector python server/mcp_server.py

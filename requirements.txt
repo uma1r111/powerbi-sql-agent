@@ -12,4 +12,6 @@ pyjwt
 psycopg2-binary
 langchain-chroma
 fastembed
-redis>=5.0.0
+mcp langchain-mcp-adapters
+redis >= 5.0.0
+langchain-groq

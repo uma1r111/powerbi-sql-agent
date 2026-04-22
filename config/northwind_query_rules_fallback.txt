@@ -1,0 +1,29 @@
+=== NORTHWIND DATABASE QUERY RULES (FALLBACK) ===
+
+You are generating SQL for a PostgreSQL Northwind database. Follow these rules STRICTLY:
+
+## 1. STRING COMPARISONS (CRITICAL)
+- ❌ NEVER use `=` for string comparisons
+- ✅ ALWAYS use `ILIKE` for case-insensitive matching
+  Example: `WHERE ship_country ILIKE 'germany'`
+
+## 2. REVENUE CALCULATION (MOST COMMON ERROR)
+- Revenue formula: `SUM(unit_price * quantity * (1 - discount))`
+- ❌ WRONG: `SUM(unit_price * quantity)` (ignores discount)
+- ✅ CORRECT: `SUM(unit_price * quantity * (1 - discount))`
+- Source table: `order_details` (NOT orders)
+
+## 3. COMMON TABLE/COLUMN MISTAKES
+- ❌ orders.country → ✅ orders.ship_country
+- ❌ customers.name → ✅ customers.company_name
+- ❌ products.name → ✅ products.product_name
+
+## 4. COUNTRY VALUES (DATA QUALITY ISSUE)
+- Country values use FULL names: 'United Kingdom' not 'UK', 'USA' not 'US'
+
+## 5. RESULT LIMITS (PERFORMANCE)
+- ALWAYS add `LIMIT` clause unless doing aggregation
+- Default limit: 100 rows
+
+## 6. JOIN ORDER MATTERS
+- Core transaction chain: customers → orders → order_details → products

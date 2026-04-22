@@ -118,7 +118,7 @@ def should_execute_query(state: GraphState) -> Literal["execute", "retry", "erro
     agent_state.add_error("Query validation failed after maximum retry attempts")
     return "error"
 
-def should_retry_query(state: GraphState) -> Literal["success", "retry", "error"]:
+def should_retry_query(state: GraphState) -> Literal["success", "retry", "error_analysis", "error"]:
     """
     Enhanced post-execution decision using error classifications
     """
@@ -130,73 +130,33 @@ def should_retry_query(state: GraphState) -> Literal["success", "retry", "error"
         logger.info("Query execution successful, proceeding to output formatting")
         return "success"
     
-    # Execution failed - check if we can retry
+    # NEW: Route to error analyzer before retrying
     if agent_state.correction_attempts < agent_state.max_correction_attempts:
-        # NEW: Use error detail from execution results
+        # Check if we should analyze error history first
         execution_results = agent_state.execution_results
         
         if execution_results and "error_detail" in execution_results:
             error_detail = execution_results["error_detail"]
             
-            # Check error properties
+            # Critical errors - no retry
             if error_detail.error_type.severity == ErrorSeverity.CRITICAL:
                 logger.error(f"Critical execution error: {error_detail.error_type.code}")
-                return "error"
-            
-            if error_detail.error_type.category == ErrorCategory.INFRASTRUCTURE:
-                logger.error(f"Infrastructure error: {error_detail.error_type.code}")
                 return "error"
             
             if not error_detail.error_type.retryable:
                 logger.error(f"Non-retryable execution error: {error_detail.error_type.code}")
                 return "error"
             
-            # Error is retryable
-            logger.info(f"Retryable error ({error_detail.error_type.code}), returning to planner")
+            # Retryable error - analyze history first
+            logger.info(f"Retryable error detected, routing to error analysis")
             agent_state.needs_correction = True
-            return "retry"
+            return "error_analysis"  # NEW: Go to error analyzer first
         
-        # Fallback: analyze error message (legacy)
-        if execution_results and "error" in execution_results:
-            error_message = execution_results["error"].lower()
-            
-            # Categorize errors (legacy logic)
-            permission_errors = [
-                "permission denied", "access denied", "unauthorized", "forbidden"
-            ]
-            
-            connection_errors = [
-                "connection", "timeout", "network", "server"
-            ]
-            
-            syntax_errors = [
-                "syntax error", "invalid sql", "parse error", "column does not exist",
-                "table does not exist", "relation does not exist"
-            ]
-            
-            # Check error category
-            if any(pattern in error_message for pattern in permission_errors):
-                logger.error(f"Permission error: {error_message}")
-                agent_state.add_error("Database access permission error")
-                return "error"
-            
-            elif any(pattern in error_message for pattern in connection_errors):
-                logger.error(f"Connection error: {error_message}")
-                agent_state.add_error("Database connection error")
-                return "error"
-            
-            elif any(pattern in error_message for pattern in syntax_errors):
-                logger.info(f"Syntax error, will retry: {error_message}")
-                agent_state.needs_correction = True
-                return "retry"
-            
-            else:
-                # Unknown error type - try once more
-                logger.warning(f"Unknown error type, will retry: {error_message}")
-                agent_state.needs_correction = True
-                return "retry"
+        # Fallback retry
+        agent_state.needs_correction = True
+        return "retry"
     
-    # Max attempts reached or non-retryable error
+    # Max attempts reached
     logger.error("Query execution failed, cannot retry")
     return "error"
 
