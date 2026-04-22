@@ -13,3 +13,5 @@ psycopg2-binary
 langchain-chroma
 fastembed
 mcp langchain-mcp-adapters
+redis >= 5.0.0
+langchain-groq
