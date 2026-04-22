@@ -1,0 +1,331 @@
+{
+  "spider_evaluation": {
+    "total_examples": 100,
+    "exact_match_accuracy": 0.0,
+    "execution_accuracy": 0.0,
+    "error_rate": 0.0,
+    "average_latency_seconds": 38.156399681568146,
+    "component_accuracies": {
+      "SELECT": 0.25,
+      "FROM": 0.25,
+      "WHERE": 0.54,
+      "JOIN": 0.53,
+      "GROUP_BY": 0.77,
+      "ORDER_BY": 0.81
+    }
+  },
+  "spider_detailed": [
+    "EvaluationResult(question='How many singers do we have?', gold_sql='SELECT count(*) FROM singer', predicted_sql=\"SELECT COUNT(*) \\nFROM employees \\nWHERE title = 'Singer';\", exact_match=False, execution_match=False, execution_time=15.218461036682129, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the total number of singers?', gold_sql='SELECT count(*) FROM singer', predicted_sql='', exact_match=False, execution_match=False, execution_time=41.233123779296875, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Show name, country, age for all singers ordered by age from the oldest to the youngest.', gold_sql='SELECT name ,  country ,  age FROM singer ORDER BY age DESC', predicted_sql=\"SELECT o.customer_id AS name, 'Unknown' AS country, EXTRACT( YEAR \\nFROM CURRENT_DATE ) - EXTRACT( YEAR \\nFROM o.order_date ) AS age \\nFROM orders AS o \\nORDER BY age DESC;\", exact_match=False, execution_match=False, execution_time=32.39593315124512, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are the names, countries, and ages for every singer in descending order of age?', gold_sql='SELECT name ,  country ,  age FROM singer ORDER BY age DESC', predicted_sql='SELECT * \\nFROM orders \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=18.32345199584961, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='What is the average, minimum, and maximum age of all singers from France?', gold_sql=\"SELECT avg(age) ,  min(age) ,  max(age) FROM singer WHERE country  =  'France'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=58.783474922180176, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the average, minimum, and maximum age for all French singers?', gold_sql=\"SELECT avg(age) ,  min(age) ,  max(age) FROM singer WHERE country  =  'France'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=33.00953412055969, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Show the name and the release year of the song by the youngest singer.', gold_sql='SELECT song_name ,  song_release_year FROM singer ORDER BY age LIMIT 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.02521491050720215, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='What are the names and release years for all the songs of the youngest singer?', gold_sql='SELECT song_name ,  song_release_year FROM singer ORDER BY age LIMIT 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.028167247772216797, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='What are all distinct countries where singers above age 20 are from?', gold_sql='SELECT DISTINCT country FROM singer WHERE age  >  20', predicted_sql='SELECT DISTINCT country \\nFROM employees \\nWHERE EXTRACT(YEAR \\nFROM AGE(CURRENT_DATE, birth_date)) > 20;', exact_match=False, execution_match=False, execution_time=24.489653825759888, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are  the different countries with singers above age 20?', gold_sql='SELECT DISTINCT country FROM singer WHERE age  >  20', predicted_sql='SELECT DISTINCT country \\nFROM employees \\nWHERE EXTRACT(YEAR \\nFROM AGE(CURRENT_DATE, birth_date)) > 20;', exact_match=False, execution_match=False, execution_time=19.48366904258728, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Show all countries and the number of singers in each country.', gold_sql='SELECT country ,  count(*) FROM singer GROUP BY country', predicted_sql='SELECT s.country, COUNT(s.supplier_id) AS number_of_singers \\nFROM suppliers AS s \\nGROUP BY s.country \\nORDER BY s.country;', exact_match=False, execution_match=False, execution_time=27.207047700881958, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='How many singers are from each country?', gold_sql='SELECT country ,  count(*) FROM singer GROUP BY country', predicted_sql='SELECT country, COUNT(supplier_id) AS supplier_count \\nFROM suppliers \\nGROUP BY country \\nORDER BY supplier_count DESC;', exact_match=False, execution_match=False, execution_time=7.710426330566406, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='List all song names by singers above the average age.', gold_sql='SELECT song_name FROM singer WHERE age  >  (SELECT avg(age) FROM singer)', predicted_sql='', exact_match=False, execution_match=False, execution_time=46.42318677902222, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are all the song names by singers who are older than average?', gold_sql='SELECT song_name FROM singer WHERE age  >  (SELECT avg(age) FROM singer)', predicted_sql='', exact_match=False, execution_match=False, execution_time=21.874335289001465, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Show location and name for all stadiums with a capacity between 5000 and 10000.', gold_sql='SELECT LOCATION ,  name FROM stadium WHERE capacity BETWEEN 5000 AND 10000', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.0354619026184082, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are the locations and names of all stations with capacity between 5000 and 10000?', gold_sql='SELECT LOCATION ,  name FROM stadium WHERE capacity BETWEEN 5000 AND 10000', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.024956464767456055, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the maximum capacity and the average of all stadiums ?', gold_sql='select max(capacity), average from stadium', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.019785404205322266, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the average and maximum capacities for all stadiums ?', gold_sql='select avg(capacity) ,  max(capacity) from stadium', predicted_sql='', exact_match=False, execution_match=False, execution_time=20.263612031936646, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the name and capacity for the stadium with highest average attendance?', gold_sql='SELECT name ,  capacity FROM stadium ORDER BY average DESC LIMIT 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.023389816284179688, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='What is the name and capacity for the stadium with the highest average attendance?', gold_sql='SELECT name ,  capacity FROM stadium ORDER BY average DESC LIMIT 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.029294252395629883, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='How many concerts are there in year 2014 or 2015?', gold_sql='SELECT count(*) FROM concert WHERE YEAR  =  2014 OR YEAR  =  2015', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.02683424949645996, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='How many concerts occurred in 2014 or 2015?', gold_sql='SELECT count(*) FROM concert WHERE YEAR  =  2014 OR YEAR  =  2015', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.023932695388793945, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Show the stadium name and the number of concerts in each stadium.', gold_sql='SELECT T2.name ,  count(*) FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id GROUP BY T1.stadium_id', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.03463172912597656, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='For each stadium, how many concerts play there?', gold_sql='SELECT T2.name ,  count(*) FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id GROUP BY T1.stadium_id', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.022770166397094727, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='Show the stadium name and capacity with most number of concerts in year 2014 or after.', gold_sql='SELECT T2.name ,  T2.capacity FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id WHERE T1.year  >=  2014 GROUP BY T2.stadium_id ORDER BY count(*) DESC LIMIT 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.02494525909423828, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': False})",
+    "EvaluationResult(question='What is the name and capacity of the stadium with the most concerts after 2013 ?', gold_sql='select t2.name ,  t2.capacity from concert as t1 join stadium as t2 on t1.stadium_id  =  t2.stadium_id where t1.year  >  2013 group by t2.stadium_id order by count(*) desc limit 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.04159426689147949, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': False})",
+    "EvaluationResult(question='Which year has most number of concerts?', gold_sql='SELECT YEAR FROM concert GROUP BY YEAR ORDER BY count(*) DESC LIMIT 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.03106689453125, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': False, 'ORDER_BY': False})",
+    "EvaluationResult(question='What is the year that had the most concerts?', gold_sql='SELECT YEAR FROM concert GROUP BY YEAR ORDER BY count(*) DESC LIMIT 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.03618645668029785, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': False, 'ORDER_BY': False})",
+    "EvaluationResult(question='Show the stadium names without any concert.', gold_sql='SELECT name FROM stadium WHERE stadium_id NOT IN (SELECT stadium_id FROM concert)', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.02388453483581543, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are the names of the stadiums without any concerts?', gold_sql='SELECT name FROM stadium WHERE stadium_id NOT IN (SELECT stadium_id FROM concert)', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.021331787109375, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Show countries where a singer above age 40 and a singer below 30 are from.', gold_sql='SELECT country FROM singer WHERE age  >  40 INTERSECT SELECT country FROM singer WHERE age  <  30', predicted_sql='', exact_match=False, execution_match=False, execution_time=19.68090271949768, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Show names for all stadiums except for stadiums having a concert in year 2014.', gold_sql='SELECT name FROM stadium EXCEPT SELECT T2.name FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id WHERE T1.year  =  2014', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.02785325050354004, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are the names of all stadiums that did not have a concert in 2014?', gold_sql='SELECT name FROM stadium EXCEPT SELECT T2.name FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id WHERE T1.year  =  2014', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.02523970603942871, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Show the name and theme for all concerts and the number of singers in each concert.', gold_sql='SELECT T2.concert_name ,  T2.theme ,  count(*) FROM singer_in_concert AS T1 JOIN concert AS T2 ON T1.concert_id  =  T2.concert_id GROUP BY T2.concert_id', predicted_sql='', exact_match=False, execution_match=False, execution_time=12.126400709152222, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are the names , themes , and number of singers for every concert ?', gold_sql='select t2.concert_name ,  t2.theme ,  count(*) from singer_in_concert as t1 join concert as t2 on t1.concert_id  =  t2.concert_id group by t2.concert_id', predicted_sql='', exact_match=False, execution_match=False, execution_time=56.67145895957947, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='List singer names and number of concerts for each singer.', gold_sql='SELECT T2.name ,  count(*) FROM singer_in_concert AS T1 JOIN singer AS T2 ON T1.singer_id  =  T2.singer_id GROUP BY T2.singer_id', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.024011850357055664, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are the names of the singers and number of concerts for each person?', gold_sql='SELECT T2.name ,  count(*) FROM singer_in_concert AS T1 JOIN singer AS T2 ON T1.singer_id  =  T2.singer_id GROUP BY T2.singer_id', predicted_sql='SELECT s.contact_name AS singer_name, 0 AS number_of_concerts \\nFROM suppliers s;', exact_match=False, execution_match=False, execution_time=21.69841432571411, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='List all singer names in concerts in year 2014.', gold_sql='SELECT T2.name FROM singer_in_concert AS T1 JOIN singer AS T2 ON T1.singer_id  =  T2.singer_id JOIN concert AS T3 ON T1.concert_id  =  T3.concert_id WHERE T3.year  =  2014', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.02137613296508789, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are the names of the singers who performed in a concert in 2014?', gold_sql='SELECT T2.name FROM singer_in_concert AS T1 JOIN singer AS T2 ON T1.singer_id  =  T2.singer_id JOIN concert AS T3 ON T1.concert_id  =  T3.concert_id WHERE T3.year  =  2014', predicted_sql='', exact_match=False, execution_match=False, execution_time=50.48081970214844, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question=\"what is the name and nation of the singer who have a song having 'Hey' in its name?\", gold_sql=\"SELECT name ,  country FROM singer WHERE song_name LIKE '%Hey%'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=0.03505730628967285, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question=\"What is the name and country of origin of every singer who has a song with the word 'Hey' in its title?\", gold_sql=\"SELECT name ,  country FROM singer WHERE song_name LIKE '%Hey%'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=31.11044669151306, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the name and location of the stadiums which some concerts happened in the years of both 2014 and 2015.', gold_sql='SELECT T2.name ,  T2.location FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id WHERE T1.Year  =  2014 INTERSECT SELECT T2.name ,  T2.location FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id WHERE T1.Year  =  2015', predicted_sql='', exact_match=False, execution_match=False, execution_time=15.002419471740723, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are the names and locations of the stadiums that had concerts that occurred in both 2014 and 2015?', gold_sql='SELECT T2.name ,  T2.location FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id WHERE T1.Year  =  2014 INTERSECT SELECT T2.name ,  T2.location FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id WHERE T1.Year  =  2015', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.01822042465209961, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the number of concerts happened in the stadium with the highest capacity .', gold_sql='select count(*) from concert where stadium_id = (select stadium_id from stadium order by capacity desc limit 1)', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.03446602821350098, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='What are the number of concerts that occurred in the stadium with the largest capacity ?', gold_sql='select count(*) from concert where stadium_id = (select stadium_id from stadium order by capacity desc limit 1)', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.04022693634033203, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='Find the number of pets whose weight is heavier than 10.', gold_sql='SELECT count(*) FROM pets WHERE weight  >  10', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.02840900421142578, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='How many pets have a greater weight than 10?', gold_sql='SELECT count(*) FROM pets WHERE weight  >  10', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.013623714447021484, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the weight of the youngest dog.', gold_sql='SELECT weight FROM pets ORDER BY pet_age LIMIT 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.03673148155212402, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='How much does the youngest dog weigh?', gold_sql='SELECT weight FROM pets ORDER BY pet_age LIMIT 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=21.68496036529541, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='Find the maximum weight for each type of pet. List the maximum weight and pet type.', gold_sql='SELECT max(weight) ,  petType FROM pets GROUP BY petType', predicted_sql='SELECT c.category_name AS pet_type, NULL::numeric AS maximum_weight \\nFROM categories c \\nGROUP BY c.category_name;', exact_match=False, execution_match=False, execution_time=51.97216987609863, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='List the maximum weight and type for each type of pet.', gold_sql='SELECT max(weight) ,  petType FROM pets GROUP BY petType', predicted_sql='', exact_match=False, execution_match=False, execution_time=16.27239179611206, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find number of pets owned by students who are older than 20.', gold_sql='SELECT count(*) FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid WHERE T1.age  >  20', predicted_sql='SELECT * \\nFROM orders \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=0.3542952537536621, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='How many pets are owned by students that have an age greater than 20?', gold_sql='SELECT count(*) FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid WHERE T1.age  >  20', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.04041862487792969, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the number of dog pets that are raised by female students (with sex F).', gold_sql=\"SELECT count(*) FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T2.petid  =  T3.petid WHERE T1.sex  =  'F' AND T3.pettype  =  'dog'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=0.03794145584106445, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='How many dog pets are raised by female students?', gold_sql=\"SELECT count(*) FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T2.petid  =  T3.petid WHERE T1.sex  =  'F' AND T3.pettype  =  'dog'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=0.0351407527923584, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the number of distinct type of pets.', gold_sql='SELECT count(DISTINCT pettype) FROM pets', predicted_sql='SELECT * \\nFROM categories \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=0.3282015323638916, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='How many different types of pet are there?', gold_sql='SELECT count(DISTINCT pettype) FROM pets', predicted_sql='SELECT * \\nFROM categories \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=0.26769399642944336, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the first name of students who have cat or dog pet.', gold_sql=\"SELECT DISTINCT T1.Fname FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'cat' OR T3.pettype  =  'dog'\", predicted_sql='SELECT * \\nFROM categories \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=0.2653486728668213, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are the first names of every student who has a cat or dog as a pet?', gold_sql=\"SELECT DISTINCT T1.Fname FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'cat' OR T3.pettype  =  'dog'\", predicted_sql='SELECT * \\nFROM categories \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=0.33022642135620117, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the first name of students who have both cat and dog pets .', gold_sql=\"select t1.fname from student as t1 join has_pet as t2 on t1.stuid  =  t2.stuid join pets as t3 on t3.petid  =  t2.petid where t3.pettype  =  'cat' intersect select t1.fname from student as t1 join has_pet as t2 on t1.stuid  =  t2.stuid join pets as t3 on t3.petid  =  t2.petid where t3.pettype  =  'dog'\", predicted_sql='SELECT category_name \\nFROM categories \\nWHERE FALSE;', exact_match=False, execution_match=False, execution_time=18.319124937057495, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question=\"What are the students' first names who have both cats and dogs as pets?\", gold_sql=\"SELECT T1.Fname FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'cat' INTERSECT SELECT T1.Fname FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'dog'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=0.14801669120788574, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the major and age of students who do not have a cat pet.', gold_sql=\"SELECT major ,  age FROM student WHERE stuid NOT IN (SELECT T1.stuid FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'cat')\", predicted_sql='SELECT NULL AS major, NULL AS age \\nFROM categories \\nWHERE FALSE;', exact_match=False, execution_match=False, execution_time=19.440747499465942, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What major is every student who does not own a cat as a pet, and also how old are they?', gold_sql=\"SELECT major ,  age FROM student WHERE stuid NOT IN (SELECT T1.stuid FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'cat')\", predicted_sql='', exact_match=False, execution_match=False, execution_time=54.803285121917725, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the id of students who do not have a cat pet.', gold_sql=\"SELECT stuid FROM student EXCEPT SELECT T1.stuid FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'cat'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=247.33149886131287, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are the ids of the students who do not own cats as pets?', gold_sql=\"SELECT stuid FROM student EXCEPT SELECT T1.stuid FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'cat'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=0.0225217342376709, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the first name and age of students who have a dog but do not have a cat as a pet.', gold_sql=\"SELECT T1.fname ,  T1.age FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'dog' AND T1.stuid NOT IN (SELECT T1.stuid FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'cat')\", predicted_sql='', exact_match=False, execution_match=False, execution_time=53.35150194168091, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the first name of every student who has a dog but does not have a cat?', gold_sql=\"SELECT T1.fname ,  T1.age FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'dog' AND T1.stuid NOT IN (SELECT T1.stuid FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pettype  =  'cat')\", predicted_sql='SELECT NULL AS first_name \\nFROM categories \\nWHERE 1=0;', exact_match=False, execution_match=False, execution_time=15.09059190750122, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the type and weight of the youngest pet.', gold_sql='SELECT pettype ,  weight FROM pets ORDER BY pet_age LIMIT 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=226.60543870925903, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='What type of pet is the youngest animal, and how much does it weigh?', gold_sql='SELECT pettype ,  weight FROM pets ORDER BY pet_age LIMIT 1', predicted_sql='', exact_match=False, execution_match=False, execution_time=46.6724271774292, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='Find the id and weight of all pets whose age is older than 1.', gold_sql='SELECT petid ,  weight FROM pets WHERE pet_age  >  1', predicted_sql='SELECT order_id, freight \\nFROM orders \\nWHERE 1=0;', exact_match=False, execution_match=False, execution_time=18.640706539154053, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the id and weight of every pet who is older than 1?', gold_sql='SELECT petid ,  weight FROM pets WHERE pet_age  >  1', predicted_sql='', exact_match=False, execution_match=False, execution_time=30.633557558059692, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the average and maximum age for each type of pet.', gold_sql='SELECT avg(pet_age) ,  max(pet_age) ,  pettype FROM pets GROUP BY pettype', predicted_sql='', exact_match=False, execution_match=False, execution_time=47.12900948524475, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the average and maximum age for each pet type?', gold_sql='SELECT avg(pet_age) ,  max(pet_age) ,  pettype FROM pets GROUP BY pettype', predicted_sql='', exact_match=False, execution_match=False, execution_time=27.038717031478882, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the average weight for each pet type.', gold_sql='SELECT avg(weight) ,  pettype FROM pets GROUP BY pettype', predicted_sql='', exact_match=False, execution_match=False, execution_time=10.214372873306274, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the average weight for each type of pet?', gold_sql='SELECT avg(weight) ,  pettype FROM pets GROUP BY pettype', predicted_sql='', exact_match=False, execution_match=False, execution_time=58.20835471153259, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the first name and age of students who have a pet.', gold_sql='SELECT DISTINCT T1.fname ,  T1.age FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.026464223861694336, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What are the different first names and ages of the students who do have pets?', gold_sql='SELECT DISTINCT T1.fname ,  T1.age FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.015993833541870117, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the id of the pet owned by student whose last name is \u2018Smith\u2019.', gold_sql=\"SELECT T2.petid FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid WHERE T1.Lname  =  'Smith'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=0.036298513412475586, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question=\"What is the id of the pet owned by the student whose last name is 'Smith'?\", gold_sql=\"SELECT T2.petid FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid WHERE T1.Lname  =  'Smith'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=0.029283523559570312, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the number of pets for each student who has any pet and student id.', gold_sql='SELECT count(*) ,  T1.stuid FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid GROUP BY T1.stuid', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.016071557998657227, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='For students who have pets , how many pets does each student have ? list their ids instead of names .', gold_sql='select count(*) ,  t1.stuid from student as t1 join has_pet as t2 on t1.stuid  =  t2.stuid group by t1.stuid', predicted_sql='', exact_match=False, execution_match=False, execution_time=21.51630663871765, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the first name and gender of student who have more than one pet.', gold_sql='SELECT T1.fname ,  T1.sex FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid GROUP BY T1.stuid HAVING count(*)  >  1', predicted_sql='', exact_match=False, execution_match=False, execution_time=1.7525148391723633, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the first name and gender of the all the students who have more than one pet?', gold_sql='SELECT T1.fname ,  T1.sex FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid GROUP BY T1.stuid HAVING count(*)  >  1', predicted_sql='', exact_match=False, execution_match=False, execution_time=29.693002462387085, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the last name of the student who has a cat that is age 3.', gold_sql=\"SELECT T1.lname FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pet_age  =  3 AND T3.pettype  =  'cat'\", predicted_sql=\"SELECT category_name, description \\nFROM categories \\nWHERE category_name ILIKE '%age 3%' OR description ILIKE '%age 3%';\", exact_match=False, execution_match=False, execution_time=12.523030996322632, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the last name of the student who has a cat that is 3 years old?', gold_sql=\"SELECT T1.lname FROM student AS T1 JOIN has_pet AS T2 ON T1.stuid  =  T2.stuid JOIN pets AS T3 ON T3.petid  =  T2.petid WHERE T3.pet_age  =  3 AND T3.pettype  =  'cat'\", predicted_sql='', exact_match=False, execution_match=False, execution_time=540.8020453453064, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the average age of students who do not have any pet .', gold_sql='select avg(age) from student where stuid not in (select stuid from has_pet)', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.010167121887207031, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the average age for all students who do not own any pets ?', gold_sql='select avg(age) from student where stuid not in (select stuid from has_pet)', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.01722574234008789, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='How many continents are there?', gold_sql='SELECT count(*) FROM CONTINENTS;', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.026975393295288086, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the number of continents?', gold_sql='SELECT count(*) FROM CONTINENTS;', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.02063775062561035, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='How many countries does each continent have? List the continent id, continent name and the number of countries.', gold_sql='SELECT T1.ContId ,  T1.Continent ,  count(*) FROM CONTINENTS AS T1 JOIN COUNTRIES AS T2 ON T1.ContId  =  T2.Continent GROUP BY T1.ContId;', predicted_sql='', exact_match=False, execution_match=False, execution_time=1667.5920288562775, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='For each continent, list its id, name, and how many countries it has?', gold_sql='SELECT T1.ContId ,  T1.Continent ,  count(*) FROM CONTINENTS AS T1 JOIN COUNTRIES AS T2 ON T1.ContId  =  T2.Continent GROUP BY T1.ContId;', predicted_sql='SELECT * \\nFROM categories \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=0.39640283584594727, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='How many countries are listed?', gold_sql='SELECT count(*) FROM COUNTRIES;', predicted_sql='SELECT * \\nFROM categories \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=0.36144447326660156, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='How many countries exist?', gold_sql='SELECT count(*) FROM COUNTRIES;', predicted_sql='SELECT * \\nFROM categories \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=0.5339646339416504, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': True, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='How many models does each car maker produce? List maker full name, id and the number.', gold_sql='SELECT T1.FullName ,  T1.Id ,  count(*) FROM CAR_MAKERS AS T1 JOIN MODEL_LIST AS T2 ON T1.Id  =  T2.Maker GROUP BY T1.Id;', predicted_sql='SELECT * \\nFROM order_details \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=0.3216993808746338, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the full name of each car maker, along with its id and how many models it produces?', gold_sql='SELECT T1.FullName ,  T1.Id ,  count(*) FROM CAR_MAKERS AS T1 JOIN MODEL_LIST AS T2 ON T1.Id  =  T2.Maker GROUP BY T1.Id;', predicted_sql='SELECT * \\nFROM products \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=0.32953739166259766, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': True, 'JOIN': False, 'GROUP_BY': False, 'ORDER_BY': True})",
+    "EvaluationResult(question='Which model of the car has the minimum horsepower?', gold_sql='SELECT T1.Model FROM CAR_NAMES AS T1 JOIN CARS_DATA AS T2 ON T1.MakeId  =  T2.Id ORDER BY T2.horsepower ASC LIMIT 1;', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.02437758445739746, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='What is the model of the car with the smallest amount of horsepower?', gold_sql='SELECT T1.Model FROM CAR_NAMES AS T1 JOIN CARS_DATA AS T2 ON T1.MakeId  =  T2.Id ORDER BY T2.horsepower ASC LIMIT 1;', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.016690731048583984, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': True, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': False})",
+    "EvaluationResult(question='Find the model of the car whose weight is below the average weight.', gold_sql='SELECT T1.model FROM CAR_NAMES AS T1 JOIN CARS_DATA AS T2 ON T1.MakeId  =  T2.Id WHERE T2.Weight  <  (SELECT avg(Weight) FROM CARS_DATA)', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.02478790283203125, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='What is the model for the car with a weight smaller than the average?', gold_sql='SELECT T1.model FROM CAR_NAMES AS T1 JOIN CARS_DATA AS T2 ON T1.MakeId  =  T2.Id WHERE T2.Weight  <  (SELECT avg(Weight) FROM CARS_DATA)', predicted_sql='', exact_match=False, execution_match=False, execution_time=0.016991376876831055, error=None, component_scores={'SELECT': False, 'FROM': False, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})",
+    "EvaluationResult(question='Find the name of the makers that produced some cars in the year of 1970?', gold_sql=\"SELECT DISTINCT T1.Maker FROM CAR_MAKERS AS T1 JOIN MODEL_LIST AS T2 ON T1.Id  =  T2.Maker JOIN CAR_NAMES AS T3 ON T2.model  =  T3.model JOIN CARS_DATA AS T4 ON T3.MakeId  =  T4.id WHERE T4.year  =  '1970';\", predicted_sql='SELECT * \\nFROM order_details \\nLIMIT 10;', exact_match=False, execution_match=False, execution_time=0.3319270610809326, error=None, component_scores={'SELECT': True, 'FROM': True, 'WHERE': False, 'JOIN': False, 'GROUP_BY': True, 'ORDER_BY': True})"
+  ],
+  "baseline_comparison": {
+    "IntelliQuery": {
+      "exact_match_accuracy": 0.0,
+      "execution_accuracy": 0.0,
+      "average_latency": 10.947873921394349
+    },
+    "Simple-LLM-Baseline": {
+      "exact_match_accuracy": 0.0,
+      "execution_accuracy": 0.0,
+      "average_latency": 1.411962971687317
+    },
+    "Rule-Based": {
+      "exact_match_accuracy": 0.0,
+      "execution_accuracy": 0.0,
+      "average_latency": 0.0
+    }
+  },
+  "error_analysis": {
+    "total_errors_categorized": 321,
+    "categories": {
+      "SCHEMA_ERROR": {
+        "total": 169,
+        "subcategories": {
+          "wrong_table": {
+            "count": 25,
+            "percentage": 7.78816199376947,
+            "examples": [
+              {
+                "question": "How many singers do we have?",
+                "gold": "SELECT count(*) FROM singer",
+                "predicted": "SELECT COUNT(*) \nFROM employees \nWHERE title = 'Singer';"
+              },
+              {
+                "question": "Show name, country, age for all singers ordered by age from the oldest to the youngest.",
+                "gold": "SELECT name ,  country ,  age FROM singer ORDER BY age DESC",
+                "predicted": "SELECT o.customer_id AS name, 'Unknown' AS country, EXTRACT( YEAR \nFROM CURRENT_DATE ) - EXTRACT( YEAR \nFROM o.order_date ) AS age \nFROM orders AS o \nORDER BY age DESC;"
+              },
+              {
+                "question": "What are the names, countries, and ages for every singer in descending order of age?",
+                "gold": "SELECT name ,  country ,  age FROM singer ORDER BY age DESC",
+                "predicted": "SELECT * \nFROM orders \nLIMIT 10;"
+              }
+            ]
+          },
+          "wrong_column": {
+            "count": 97,
+            "percentage": 30.218068535825545,
+            "examples": [
+              {
+                "question": "What is the total number of singers?",
+                "gold": "SELECT count(*) FROM singer",
+                "predicted": ""
+              },
+              {
+                "question": "Show name, country, age for all singers ordered by age from the oldest to the youngest.",
+                "gold": "SELECT name ,  country ,  age FROM singer ORDER BY age DESC",
+                "predicted": "SELECT o.customer_id AS name, 'Unknown' AS country, EXTRACT( YEAR \nFROM CURRENT_DATE ) - EXTRACT( YEAR \nFROM o.order_date ) AS age \nFROM orders AS o \nORDER BY age DESC;"
+              },
+              {
+                "question": "What are the names, countries, and ages for every singer in descending order of age?",
+                "gold": "SELECT name ,  country ,  age FROM singer ORDER BY age DESC",
+                "predicted": "SELECT * \nFROM orders \nLIMIT 10;"
+              }
+            ]
+          },
+          "missing_join": {
+            "count": 47,
+            "percentage": 14.641744548286603,
+            "examples": [
+              {
+                "question": "Show the stadium name and the number of concerts in each stadium.",
+                "gold": "SELECT T2.name ,  count(*) FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id GROUP BY T1.stadium_id",
+                "predicted": ""
+              },
+              {
+                "question": "For each stadium, how many concerts play there?",
+                "gold": "SELECT T2.name ,  count(*) FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id GROUP BY T1.stadium_id",
+                "predicted": ""
+              },
+              {
+                "question": "Show the stadium name and capacity with most number of concerts in year 2014 or after.",
+                "gold": "SELECT T2.name ,  T2.capacity FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id WHERE T1.year  >=  2014 GROUP BY T2.stadium_id ORDER BY count(*) DESC LIMIT 1",
+                "predicted": ""
+              }
+            ]
+          },
+          "extra_join": {
+            "count": 0,
+            "percentage": 0.0,
+            "examples": []
+          }
+        },
+        "percentage": 52.64797507788161
+      },
+      "LOGIC_ERROR": {
+        "total": 77,
+        "subcategories": {
+          "wrong_aggregation": {
+            "count": 54,
+            "percentage": 16.822429906542055,
+            "examples": [
+              {
+                "question": "What is the total number of singers?",
+                "gold": "SELECT count(*) FROM singer",
+                "predicted": ""
+              },
+              {
+                "question": "What are the names, countries, and ages for every singer in descending order of age?",
+                "gold": "SELECT name ,  country ,  age FROM singer ORDER BY age DESC",
+                "predicted": "SELECT * \nFROM orders \nLIMIT 10;"
+              },
+              {
+                "question": "What is the average, minimum, and maximum age of all singers from France?",
+                "gold": "SELECT avg(age) ,  min(age) ,  max(age) FROM singer WHERE country  =  'France'",
+                "predicted": ""
+              }
+            ]
+          },
+          "wrong_filter": {
+            "count": 0,
+            "percentage": 0.0,
+            "examples": []
+          },
+          "missing_group_by": {
+            "count": 23,
+            "percentage": 7.165109034267912,
+            "examples": [
+              {
+                "question": "Show the stadium name and the number of concerts in each stadium.",
+                "gold": "SELECT T2.name ,  count(*) FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id GROUP BY T1.stadium_id",
+                "predicted": ""
+              },
+              {
+                "question": "For each stadium, how many concerts play there?",
+                "gold": "SELECT T2.name ,  count(*) FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id GROUP BY T1.stadium_id",
+                "predicted": ""
+              },
+              {
+                "question": "Show the stadium name and capacity with most number of concerts in year 2014 or after.",
+                "gold": "SELECT T2.name ,  T2.capacity FROM concert AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.stadium_id WHERE T1.year  >=  2014 GROUP BY T2.stadium_id ORDER BY count(*) DESC LIMIT 1",
+                "predicted": ""
+              }
+            ]
+          },
+          "wrong_order_by": {
+            "count": 0,
+            "percentage": 0.0,
+            "examples": []
+          }
+        },
+        "percentage": 23.98753894080997
+      },
+      "SYNTAX_ERROR": {
+        "total": 75,
+        "subcategories": {
+          "malformed_sql": {
+            "count": 75,
+            "percentage": 23.364485981308412,
+            "examples": [
+              {
+                "question": "What is the total number of singers?",
+                "gold": "SELECT count(*) FROM singer",
+                "predicted": ""
+              },
+              {
+                "question": "What is the average, minimum, and maximum age of all singers from France?",
+                "gold": "SELECT avg(age) ,  min(age) ,  max(age) FROM singer WHERE country  =  'France'",
+                "predicted": ""
+              },
+              {
+                "question": "What is the average, minimum, and maximum age for all French singers?",
+                "gold": "SELECT avg(age) ,  min(age) ,  max(age) FROM singer WHERE country  =  'France'",
+                "predicted": ""
+              }
+            ]
+          },
+          "missing_keyword": {
+            "count": 0,
+            "percentage": 0.0,
+            "examples": []
+          },
+          "invalid_syntax": {
+            "count": 0,
+            "percentage": 0.0,
+            "examples": []
+          }
+        },
+        "percentage": 23.364485981308412
+      },
+      "SEMANTIC_ERROR": {
+        "total": 0,
+        "subcategories": {
+          "ambiguous_interpretation": {
+            "count": 0,
+            "percentage": 0.0,
+            "examples": []
+          },
+          "missing_constraint": {
+            "count": 0,
+            "percentage": 0.0,
+            "examples": []
+          },
+          "over_specification": {
+            "count": 0,
+            "percentage": 0.0,
+            "examples": []
+          }
+        },
+        "percentage": 0.0
+      }
+    }
+  }
+}
