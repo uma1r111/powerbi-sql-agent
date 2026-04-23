@@ -199,11 +199,12 @@ const ManualChartBuilder = ({ sessionId, onAddChart, onClose, theme }) => {
         try {
             const token = sessionStorage.getItem('token');
             const keys = Object.keys(result.data[0]);
-            const xKey = xCol || keys[0];
-            const yKey = yCol && yCol !== xKey
+            const xKey = xCol && keys.includes(xCol) ? xCol : keys[0];
+            const yKey = yCol && yCol !== xKey && keys.includes(yCol)
                 ? yCol
                 : keys.find(k => k !== xKey && typeof result.data[0][k] === 'number') || keys[1] || keys[0];
-            const zKey = zCol && zCol !== xKey && zCol !== yKey ? zCol
+            const zKey = zCol && zCol !== xKey && zCol !== yKey && keys.includes(zCol)
+                ? zCol
                 : keys.find(k => k !== xKey && k !== yKey && typeof result.data[0][k] === 'number') || yKey;
 
             const chartDef = {
@@ -228,7 +229,7 @@ const ManualChartBuilder = ({ sessionId, onAddChart, onClose, theme }) => {
             if (res.ok) {
                 window.dispatchEvent(new CustomEvent('refreshDashboard'));
                 setAdded(true);
-                if (onAddChart) onAddChart();
+                if (onAddChart) onAddChart({ chart: chartDef, sql });
                 setTimeout(() => setAdded(false), 3000);
             }
         } catch (e) { console.error(e); }

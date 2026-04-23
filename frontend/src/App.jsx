@@ -552,6 +552,19 @@ const Dashboard = ({ user, onLogout }) => {
     ));
   };
 
+  const handleChartBuilderAdded = ({ chart, sql }) => {
+    const now = new Date().toISOString();
+    const chartWithMeta = { ...chart, query: chart.title, created_at: now };
+    // Add to visualization history
+    handleChartCreated(chartWithMeta);
+    // Add to query history as a synthetic user + ai message pair
+    setMessages(prev => [
+      ...prev,
+      { type: 'user', content: `[Chart Builder] ${chart.title}`, timestamp: now },
+      { type: 'ai', content: 'Chart created via Chart Builder and added to dashboard.', sql, results: chart.data?.slice(0, 100) || [], chart: chartWithMeta, timestamp: now },
+    ]);
+  };
+
   const handleChartsLoaded = (charts) => {
     setConversations(prev => prev.map(c => {
       if (c.id !== activeConvId || c.charts?.length) return c;
@@ -804,6 +817,7 @@ const Dashboard = ({ user, onLogout }) => {
             <DashboardContainer
               sessionId={`session-${activeConvId}`}
               onChartsLoaded={handleChartsLoaded}
+              onChartBuilderAdded={handleChartBuilderAdded}
             />
           </div>
 

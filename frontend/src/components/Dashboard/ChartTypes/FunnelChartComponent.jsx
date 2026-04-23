@@ -28,7 +28,7 @@ const FunnelChartComponent = ({ chart }) => {
         <div className="h-full flex flex-col justify-center gap-1 px-4 py-2 overflow-y-auto">
             {sorted.map((item, idx) => {
                 const pct = (item.value / maxVal) * 100;
-                const convRate = idx > 0 ? ((item.value / sorted[0].value) * 100).toFixed(0) : 100;
+                const convRate = idx > 0 ? ((item.value / maxVal) * 100).toFixed(0) : 100;
                 return (
                     <div key={idx} className="flex flex-col gap-0.5">
                         <div className="flex items-center justify-between text-xs mb-0.5">

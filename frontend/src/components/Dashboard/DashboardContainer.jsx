@@ -12,7 +12,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 
 const API = 'http://localhost:8000/api';
 
-const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
+const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuilderAdded }) => {
     const { theme: t } = useTheme();
 
     const [dashboard, setDashboard] = useState(null);
@@ -372,7 +372,7 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded }) => {
                     }}>
                     <ManualChartBuilder
                         sessionId={sessionId}
-                        onAddChart={() => { }}
+                        onAddChart={(payload) => onChartBuilderAdded?.(payload)}
                         onClose={() => setShowBuilder(false)}
                         theme={t}
                     />
