@@ -3,7 +3,7 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-const COLORS = [
+const PALETTE = [
     '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
     '#6366f1', '#14b8a6', '#f43f5e', '#a855f7', '#06b6d4'
 ];
@@ -15,11 +15,12 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
     const yAxis = config?.yAxis || Object.keys(data[0])[1];
     const color = config?.color || '#3b82f6';
 
+    // If a custom color is configured (anything other than the default), use single-color mode
+    const isCustomColor = !!(config?.color && config.color !== '#3b82f6');
+
     const isSelectable = !!onSelect;
     const hasSelection = !!selectedValue;
 
-    // If the value column has no numeric data the bar chart can't render meaningful bars.
-    // Fall back to a plain table so the data is still visible.
     const valueCol = isHorizontal ? xAxis : yAxis;
     const hasNumericData = data.some(row => typeof row[valueCol] === 'number' && !isNaN(row[valueCol]));
     if (!hasNumericData) {
@@ -52,7 +53,6 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
         );
     }
 
-    // Determine the "label key" for this chart's bars
     const barLabelKey = isHorizontal ? yAxis : xAxis;
 
     const getCellOpacity = (entry) => {
@@ -65,6 +65,12 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
         return String(entry[barLabelKey]) === selectedValue ? '#1d4ed8' : 'none';
     };
 
+    // Respect configured color; fall back to multi-color palette when no custom color
+    const getCellFill = (index) => {
+        if (isCustomColor) return color;
+        return PALETTE[index % PALETTE.length];
+    };
+
     const handleClick = (barData) => {
         if (!isSelectable) return;
         onSelect(barLabelKey, barData[barLabelKey]);
@@ -74,11 +80,11 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
         if (active && payload && payload.length) {
             const d = payload[0].payload;
             return (
-                <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-                    <p className="font-semibold text-gray-900">{isHorizontal ? d[yAxis] : d[xAxis]}</p>
-                    <p className="text-sm text-gray-600">
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', boxShadow: '0 4px 12px rgba(0,0,0,.12)' }}>
+                    <p style={{ fontWeight: '600', color: '#1e293b', margin: '0 0 4px' }}>{isHorizontal ? d[yAxis] : d[xAxis]}</p>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
                         {isHorizontal ? xAxis : yAxis}:{' '}
-                        <span className="font-medium">
+                        <span style={{ fontWeight: '600', color: '#1e293b' }}>
                             {typeof payload[0].value === 'number'
                                 ? payload[0].value.toLocaleString()
                                 : payload[0].value}
@@ -117,7 +123,7 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
                         {data.map((entry, index) => (
                             <Cell
                                 key={`cell-${index}`}
-                                fill={COLORS[index % COLORS.length]}
+                                fill={getCellFill(index)}
                                 opacity={getCellOpacity(entry)}
                                 stroke={getCellStroke(entry)}
                                 strokeWidth={2}
@@ -143,7 +149,6 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
                     <Tooltip content={<CustomTooltip />} />
                     <Bar
                         dataKey={yAxis}
-                        fill={color}
                         radius={[4, 4, 0, 0]}
                         onClick={(barData) => handleClick(barData)}
                         style={{ cursor: isSelectable ? 'pointer' : 'default' }}
@@ -151,7 +156,7 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
                         {data.map((entry, index) => (
                             <Cell
                                 key={`cell-${index}`}
-                                fill={COLORS[index % COLORS.length]}
+                                fill={getCellFill(index)}
                                 opacity={getCellOpacity(entry)}
                                 stroke={getCellStroke(entry)}
                                 strokeWidth={2}

@@ -1,97 +1,172 @@
 // frontend/src/components/Dashboard/ChartTypes/KPICard.jsx
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
 
-const KPICard = ({ chart }) => {
-    const { config, data, sql } = chart;
-    const value = config?.value || data?.[0]?.[Object.keys(data[0])[0]] || 0;
-    const label = config?.label || chart.title || 'Metric';
+const KPICard = ({ chart, theme }) => {
+    const { config, data, title } = chart;
+    const t = theme || {
+        surface: '#fff', text: '#1e293b', textSub: '#475569', textMuted: '#94a3b8',
+        accent: '#6366f1', accentLight: '#eef2ff', border: '#e2e8f0', bg: '#f8fafc',
+    };
+
+    // Extract main numeric value from data or config
+    const rawValue = useMemo(() => {
+        if (config?.value !== undefined && config.value !== null) return config.value;
+        if (!data?.length) return null;
+        const firstRow = data[0];
+        const keys = Object.keys(firstRow);
+        // Prefer columns named total, count, sum, value, amount, revenue
+        const preferred = ['total', 'count', 'sum', 'value', 'amount', 'revenue', 'avg', 'average'];
+        const key = keys.find(k => preferred.some(p => k.toLowerCase().includes(p))) || keys[0];
+        const v = firstRow[key];
+        // Parse string numbers (e.g. PostgreSQL numeric type comes as string)
+        if (typeof v === 'string' && !isNaN(parseFloat(v))) return parseFloat(v);
+        return v;
+    }, [config, data]);
+
+    const label = config?.label || title || 'Metric';
     const trend = config?.trend;
+    const accentColor = config?.color || t.accent;
 
-    // Extract context from SQL query to make KPI more descriptive
-    const getContext = () => {
-        if (!sql) return '';
+    // Build sparkline data from query results (last N values)
+    const sparkData = useMemo(() => {
+        if (!data || data.length < 2) return null;
+        const cols = Object.keys(data[0]);
+        // Find a numeric column for sparkline
+        const numCol = cols.find(k => {
+            const v = data[0][k];
+            return typeof v === 'number' || (typeof v === 'string' && !isNaN(parseFloat(v)));
+        });
+        if (!numCol) return null;
+        return data.slice(-12).map((row, i) => ({
+            i,
+            v: typeof row[numCol] === 'string' ? parseFloat(row[numCol]) : row[numCol],
+        }));
+    }, [data]);
 
-        const sqlLower = sql.toLowerCase();
-
-        // Check for aggregations and filters
-        if (sqlLower.includes('where')) {
-            const whereMatch = sql.match(/where\s+(.+?)(?:group|order|limit|$)/i);
-            if (whereMatch) {
-                const condition = whereMatch[1].trim();
-                return `(${condition.split('=')[0].trim()}: ${condition.split('=')[1]?.trim() || 'filtered'})`;
-            }
-        }
-
-        // Check what table is being queried
-        const fromMatch = sql.match(/from\s+(\w+)/i);
-        if (fromMatch) {
-            const table = fromMatch[1];
-
-            // Make it more readable
-            if (sqlLower.includes('count')) {
-                return `Total count from ${table}`;
-            } else if (sqlLower.includes('sum')) {
-                return `Total sum from ${table}`;
-            } else if (sqlLower.includes('avg')) {
-                return `Average from ${table}`;
-            } else if (sqlLower.includes('distinct')) {
-                return `Distinct count from ${table}`;
-            }
-
-            return `From ${table} table`;
-        }
-
-        return 'Database aggregate';
-    };
-
-    const context = getContext();
-
-    // Format value
     const formatValue = (val) => {
-        if (typeof val === 'number') {
-            // If it's a large number, format with commas
-            if (val >= 1000000) {
-                return `$${(val / 1000000).toFixed(2)}M`;
-            } else if (val >= 1000) {
-                return val.toLocaleString();
-            } else {
-                return val.toLocaleString();
-            }
-        }
-        return val;
+        if (val === null || val === undefined) return '—';
+        const num = typeof val === 'string' ? parseFloat(val) : val;
+        if (typeof num !== 'number' || isNaN(num)) return String(val);
+        if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`;
+        if (num >= 10_000) return num.toLocaleString(undefined, { maximumFractionDigits: 0 });
+        if (Number.isInteger(num)) return num.toLocaleString();
+        return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
     };
 
-    // Determine trend direction
-    const getTrendIcon = () => {
-        if (!trend) return null;
-        if (trend > 0) return <TrendingUp className="w-5 h-5 text-green-500" />;
-        if (trend < 0) return <TrendingDown className="w-5 h-5 text-red-500" />;
-        return <Minus className="w-5 h-5 text-gray-400" />;
-    };
+    const trendColor = !trend ? t.textMuted : trend > 0 ? '#10b981' : '#ef4444';
+    const TrendIcon = !trend ? Minus : trend > 0 ? TrendingUp : TrendingDown;
 
     return (
-        <div className="h-full flex flex-col justify-center items-center p-6 bg-gradient-to-br from-blue-50 to-white rounded-lg">
-            <div className="text-xs font-medium text-gray-500 mb-1 text-center uppercase tracking-wide">
+        <div style={{
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '16px 20px 12px',
+            background: t.surface,
+            position: 'relative',
+            overflow: 'hidden',
+        }}>
+            {/* Accent gradient strip */}
+            <div style={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0,
+                height: '3px',
+                background: `linear-gradient(90deg, ${accentColor}, ${accentColor}88)`,
+            }} />
+
+            {/* Label */}
+            <p style={{
+                fontSize: '11px',
+                fontWeight: '600',
+                color: t.textMuted,
+                letterSpacing: '0.8px',
+                textTransform: 'uppercase',
+                margin: '0 0 8px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+            }}>
                 {label}
-            </div>
-            <div className="text-4xl font-bold text-gray-900 mb-2">
-                {formatValue(value)}
-            </div>
-            {context && (
-                <div className="text-xs text-gray-500 text-center max-w-full px-2 mb-2">
-                    {context}
+            </p>
+
+            {/* Value row */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flex: 1 }}>
+                <div>
+                    <div style={{
+                        fontSize: 'clamp(22px, 4vw, 36px)',
+                        fontWeight: '800',
+                        color: t.text,
+                        lineHeight: 1,
+                        letterSpacing: '-0.5px',
+                        marginBottom: trend !== undefined ? '6px' : '0',
+                    }}>
+                        {formatValue(rawValue)}
+                    </div>
+
+                    {trend !== undefined && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <TrendIcon style={{ width: '14px', height: '14px', color: trendColor }} />
+                            <span style={{ fontSize: '12px', fontWeight: '600', color: trendColor }}>
+                                {trend > 0 ? '+' : ''}{trend}%
+                            </span>
+                            <span style={{ fontSize: '11px', color: t.textMuted }}>vs last period</span>
+                        </div>
+                    )}
                 </div>
-            )}
-            {trend !== undefined && (
-                <div className="flex items-center gap-1">
-                    {getTrendIcon()}
-                    <span className={`text-sm font-medium ${trend > 0 ? 'text-green-600' : trend < 0 ? 'text-red-600' : 'text-gray-500'
-                        }`}>
-                        {trend > 0 ? '+' : ''}{trend}%
-                    </span>
-                </div>
+
+                {/* Mini sparkline */}
+                {sparkData && sparkData.length >= 3 && (
+                    <div style={{ width: '80px', height: '40px', flexShrink: 0 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={sparkData} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                                <defs>
+                                    <linearGradient id={`kpi-spark-${chart.chart_id}`} x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor={accentColor} stopOpacity={0.4} />
+                                        <stop offset="100%" stopColor={accentColor} stopOpacity={0.02} />
+                                    </linearGradient>
+                                </defs>
+                                <Tooltip content={() => null} />
+                                <Area
+                                    type="monotone"
+                                    dataKey="v"
+                                    stroke={accentColor}
+                                    strokeWidth={1.5}
+                                    fill={`url(#kpi-spark-${chart.chart_id})`}
+                                    dot={false}
+                                    activeDot={false}
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                )}
+
+                {/* Accent icon when no sparkline */}
+                {(!sparkData || sparkData.length < 3) && (
+                    <div style={{
+                        width: '40px', height: '40px',
+                        borderRadius: '12px',
+                        background: `${accentColor}15`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                    }}>
+                        <TrendingUp style={{ width: '18px', height: '18px', color: accentColor }} />
+                    </div>
+                )}
+            </div>
+
+            {/* Row count badge */}
+            {data?.length > 1 && (
+                <p style={{
+                    fontSize: '10px',
+                    color: t.textMuted,
+                    margin: '6px 0 0',
+                    opacity: 0.6,
+                }}>
+                    {data.length} data points
+                </p>
             )}
         </div>
     );

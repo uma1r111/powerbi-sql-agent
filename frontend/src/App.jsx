@@ -4,7 +4,8 @@ import {
   BarChart2, Search, Trash2, Plus, Edit2, Check, X,
   Code, Copy, ChevronDown, Palette, Sparkles, TrendingUp,
   Activity, ChevronRight, Eye, EyeOff, Lock, Mail, Bell, BookOpen,
-  Shield, FileText
+  Shield, FileText, Download, ChevronUp, Zap, CheckCircle2, Loader2,
+  AlertCircle
 } from 'lucide-react';
 import axios from 'axios';
 import DashboardContainer from './components/Dashboard/DashboardContainer';
@@ -74,11 +75,6 @@ const LoginPage = ({ onLogin }) => {
     { icon: BookOpen,      text: 'RAG-powered document Q&A with source citations',  col: '#10b981' },
   ];
 
-  const STATS = [
-    { label: 'Revenue', val: '$2.4M', chg: '+12%', chgCol: '#10b981' },
-    { label: 'Orders',  val: '1,847', chg: '+8%',  chgCol: '#10b981' },
-    { label: 'Queries', val: '98.4%', chg: 'Acc.', chgCol: '#d4af37' },
-  ];
 
   // Shared styles
   const fieldBox = {
@@ -98,23 +94,26 @@ const LoginPage = ({ onLogin }) => {
   return (
     <div style={{
       minHeight: '100vh', display: 'flex',
-      fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+      fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
       background: '#080d1a',
     }}>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         @keyframes iqShimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
         @keyframes iqPulse { 0%,100%{opacity:.22;transform:scale(1)} 50%{opacity:.46;transform:scale(1.04)} }
         @keyframes iqFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
         @keyframes iqFadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
         .iq-form-card { animation: iqFadeUp .5s ease forwards; }
         .iq-shimmer-btn {
-          background: linear-gradient(90deg,#a07820 0%,#d4af37 25%,#f5e060 50%,#d4af37 75%,#a07820 100%);
-          background-size: 200% auto; transition: all .3s ease;
+          background: linear-gradient(135deg,#c9a227 0%,#e8c840 50%,#c9a227 100%);
+          background-size: 200% auto; transition: all .25s ease;
+          font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+          -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
         }
         .iq-shimmer-btn:hover:not(:disabled) {
-          animation: iqShimmer 1.4s linear infinite;
-          box-shadow: 0 12px 40px rgba(212,175,55,.45), 0 0 0 1px rgba(212,175,55,.25);
-          transform: translateY(-2px);
+          animation: iqShimmer 1.6s linear infinite;
+          box-shadow: 0 10px 32px rgba(212,175,55,.4), 0 0 0 1px rgba(212,175,55,.2);
+          transform: translateY(-1px);
         }
         .iq-shimmer-btn:active:not(:disabled) { transform: translateY(0); }
         .iq-field:focus-within {
@@ -124,6 +123,7 @@ const LoginPage = ({ onLogin }) => {
         .iq-demo:hover { background: rgba(212,175,55,.15) !important; transform: translateY(-1px); }
         .iq-tab:hover { color: rgba(212,175,55,.9) !important; }
         .iq-link:hover { color: #d4af37 !important; }
+        * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
       `}</style>
 
       {/* ══ LEFT PANEL ══════════════════════════════════════════════════════ */}
@@ -165,11 +165,11 @@ const LoginPage = ({ onLogin }) => {
           </div>
 
           <h1 style={{
-            fontSize: '30px', fontWeight: '900', letterSpacing: '6px',
-            color: '#e8d595', margin: '0 0 8px',
-            textShadow: '0 0 40px rgba(212,175,55,.25)',
+            fontSize: '26px', fontWeight: '800', letterSpacing: '3px',
+            color: '#e8d595', margin: '0 0 6px',
+            fontFamily: "'Inter', sans-serif",
           }}>INTELLIQUERY</h1>
-          <p style={{ fontSize: '12px', letterSpacing: '2.5px', color: 'rgba(190,160,100,.55)', margin: 0, textTransform: 'uppercase' }}>
+          <p style={{ fontSize: '11px', letterSpacing: '1.8px', color: 'rgba(190,160,100,.55)', margin: 0, textTransform: 'uppercase', fontWeight: '500' }}>
             AI-Driven Analytics Suite
           </p>
         </div>
@@ -193,39 +193,6 @@ const LoginPage = ({ onLogin }) => {
               <p style={{ fontSize: '14px', color: 'rgba(210,185,140,.7)', lineHeight: '1.5', margin: '6px 0 0' }}>{text}</p>
             </div>
           ))}
-        </div>
-
-        {/* Mini KPI preview */}
-        <div style={{
-          borderRadius: '16px', padding: '18px',
-          background: 'rgba(255,255,255,.03)', border: '1px solid rgba(212,175,55,.08)',
-          marginBottom: '12px',
-        }}>
-          <p style={{ fontSize: '11px', color: 'rgba(190,160,100,.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '14px' }}>
-            Live Analytics Preview
-          </p>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
-            {STATS.map(({ label, val, chg, chgCol }) => (
-              <div key={label} style={{
-                flex: 1, borderRadius: '12px', padding: '12px',
-                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.05)',
-              }}>
-                <p style={{ fontSize: '11px', color: 'rgba(200,180,140,.45)', margin: '0 0 4px' }}>{label}</p>
-                <p style={{ fontSize: '18px', fontWeight: '700', color: '#e8d595', margin: '0 0 2px' }}>{val}</p>
-                <p style={{ fontSize: '11px', fontWeight: '600', color: chgCol, margin: 0 }}>{chg}</p>
-              </div>
-            ))}
-          </div>
-          {/* Mini bar chart */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '36px' }}>
-            {[55,72,48,88,65,80,58,92,70,85,78,100].map((h, i) => (
-              <div key={i} style={{
-                flex: 1, borderRadius: '3px 3px 0 0',
-                height: `${h}%`,
-                background: `rgba(212,175,55,${.2 + h / 400})`,
-              }} />
-            ))}
-          </div>
         </div>
 
         <div style={{ flex: 1 }} />
@@ -324,11 +291,12 @@ const LoginPage = ({ onLogin }) => {
                 </div>
                 <button type="submit" disabled={loading} className="iq-shimmer-btn"
                   style={{
-                    width:'100%',padding:'16px',border:'none',borderRadius:'14px',
-                    fontSize:'14px',fontWeight:'700',letterSpacing:'1.5px',textTransform:'uppercase',
+                    width:'100%',padding:'15px',border:'none',borderRadius:'14px',
+                    fontSize:'14px',fontWeight:'700',letterSpacing:'0.8px',textTransform:'uppercase',
                     color:'#0a0f1e',cursor:loading?'not-allowed':'pointer',opacity:loading?.65:1,marginTop:'6px',
+                    fontFamily:"'Inter','Segoe UI',sans-serif",
                   }}>
-                  {loading?'Authenticating…':'Sign In'}
+                  {loading?'Authenticating…':'Sign In →'}
                 </button>
                 <p style={{ textAlign:'center',fontSize:'13px',color:'rgba(180,150,90,.4)',margin:'6px 0 0' }}>
                   Don't have an account?{' '}
@@ -373,11 +341,12 @@ const LoginPage = ({ onLogin }) => {
                 </div>
                 <button type="submit" disabled={loading} className="iq-shimmer-btn"
                   style={{
-                    width:'100%',padding:'16px',border:'none',borderRadius:'14px',
-                    fontSize:'14px',fontWeight:'700',letterSpacing:'1.5px',textTransform:'uppercase',
+                    width:'100%',padding:'15px',border:'none',borderRadius:'14px',
+                    fontSize:'14px',fontWeight:'700',letterSpacing:'0.8px',textTransform:'uppercase',
                     color:'#0a0f1e',cursor:loading?'not-allowed':'pointer',opacity:loading?.65:1,marginTop:'6px',
+                    fontFamily:"'Inter','Segoe UI',sans-serif",
                   }}>
-                  {loading?'Creating Account…':'Request Access'}
+                  {loading?'Creating Account…':'Request Access →'}
                 </button>
               </form>
             )}
@@ -413,19 +382,62 @@ const LoginPage = ({ onLogin }) => {
   );
 };
 
+// ─── Progress stage definitions ──────────────────────────────────────────────
+const QUERY_STAGES = [
+  { label: 'Analyzing schema…',  icon: Database },
+  { label: 'Planning query…',    icon: Code },
+  { label: 'Validating SQL…',    icon: CheckCircle2 },
+  { label: 'Executing…',         icon: Zap },
+  { label: 'Formatting results…', icon: Activity },
+];
+const STAGE_DELAYS = [0, 900, 2200, 4000, 7000];
+
 // ─── Chat Panel ───────────────────────────────────────────────────────────────
-const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCreated, hideHeader }) => {
+const _FULL_DASH_KWS_CP = [
+  'full dashboard', 'full analysis', 'complete overview', 'complete analysis',
+  'give me a dashboard', 'generate dashboard', 'create dashboard', 'dashboard for',
+  'analytics dashboard', 'full report', 'overview dashboard', 'overview of',
+  'show dashboard', 'build dashboard', 'show me everything', 'all metrics',
+  'show all', 'populate dashboard', 'fill dashboard',
+  // natural phrasing variants
+  'dashboard based on', 'dashboard about', 'dashboard on',
+  'make a dashboard', 'make dashboard', 'make me a dashboard',
+  'create a dashboard', 'generate a dashboard', 'give me the dashboard',
+  'build me a dashboard', 'build a dashboard',
+];
+const _detectTopicCP = (text) => {
+  const t = text.toLowerCase();
+  for (const kw of ['customer', 'product', 'order', 'employee', 'supplier', 'revenue', 'sales']) {
+    if (t.includes(kw)) return kw;
+  }
+  return null;
+};
+
+const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCreated, hideHeader, onPrepareFullDashboard }) => {
   const { theme: t } = useTheme();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [stage, setStage] = useState(0);
+  const [expandedSql, setExpandedSql] = useState(null);
   const bottomRef = useRef(null);
   const messageRefs = useRef({});
+  const stageTimers = useRef([]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
   useEffect(() => {
     if (scrollToIndex !== null && messageRefs.current[scrollToIndex])
       messageRefs.current[scrollToIndex].scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [scrollToIndex]);
+
+  useEffect(() => {
+    stageTimers.current.forEach(clearTimeout);
+    stageTimers.current = [];
+    if (!loading) { setStage(0); return; }
+    STAGE_DELAYS.forEach((delay, i) => {
+      stageTimers.current.push(setTimeout(() => setStage(i), delay));
+    });
+    return () => stageTimers.current.forEach(clearTimeout);
+  }, [loading]);
 
   const addChartToDashboard = async (chart) => {
     try {
@@ -441,13 +453,23 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
   const sendQuery = async (queryOverride) => {
     const q = queryOverride || input;
     if (!q.trim() || loading) return;
+
+    const isFullDash = _FULL_DASH_KWS_CP.some(kw => q.toLowerCase().includes(kw));
+    let targetSessionId = sessionId || 'default';
+    let activateNewPage = null;
+    if (isFullDash && onPrepareFullDashboard) {
+      const { newSessionId, activate } = onPrepareFullDashboard();
+      targetSessionId = newSessionId;
+      activateNewPage = activate;
+    }
+
     setMessages(prev => [...prev, { type: 'user', content: q, timestamp: new Date().toISOString() }]);
     if (!queryOverride) setInput('');
     setLoading(true);
     try {
       const token = sessionStorage.getItem('token');
       const res = await axios.post(`${API_URL}/query`,
-        { question: q, session_id: sessionId || 'default' },
+        { question: q, session_id: targetSessionId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const ai = {
@@ -455,13 +477,17 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
         content: res.data.explanation || 'Query processed successfully.',
         sql: res.data.sql, results: res.data.results || [],
         execution_time: res.data.execution_time, chart: res.data.chart,
-        sessionId, timestamp: new Date().toISOString()
+        sessionId: targetSessionId, timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, ai]);
       if (res.data.chart && onChartCreated)
         onChartCreated({ ...res.data.chart, query: q, created_at: new Date().toISOString() });
-      if (res.data.chart?.auto_added || res.data.full_dashboard_generated)
+      if (res.data.full_dashboard_generated && activateNewPage) {
+        // Navigate to the new page — DashboardContainer will load the already-saved dashboard
+        activateNewPage(_detectTopicCP(q));
+      } else if (res.data.chart?.auto_added || res.data.full_dashboard_generated) {
         setTimeout(() => window.dispatchEvent(new CustomEvent('refreshDashboard')), 500);
+      }
     } catch (err) {
       const detail = err.response?.data?.detail;
       setMessages(prev => [...prev, {
@@ -501,7 +527,32 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
               }}>
               {msg.type === 'error'
                 ? <div className="flex items-start gap-2"><span className="shrink-0 mt-0.5">⚠</span><p>{msg.content}</p></div>
-                : <p style={{ lineHeight: '1.5' }}>{msg.content}</p>}
+                : <p style={{ lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>{msg.content}</p>}
+              {/* SQL toggle for AI messages */}
+              {msg.sql && msg.type === 'ai' && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => setExpandedSql(expandedSql === idx ? null : idx)}
+                    className="flex items-center gap-1.5 text-xs rounded-lg px-2 py-1 transition-all"
+                    style={{ background: `${t.accent}12`, color: t.accent, border: `1px solid ${t.accent}25` }}>
+                    <Code className="w-3 h-3" />
+                    {expandedSql === idx ? 'Hide SQL' : 'View SQL'}
+                    <ChevronDown className={`w-3 h-3 transition-transform ${expandedSql === idx ? 'rotate-180' : ''}`} />
+                  </button>
+                  {expandedSql === idx && (
+                    <div className="mt-1.5 rounded-xl overflow-hidden" style={{ border: `1px solid ${t.border}` }}>
+                      <div style={{ display:'flex',justifyContent:'space-between',padding:'6px 10px',background:'#0f172a' }}>
+                        <span style={{ fontSize:'10px',color:'#64748b',fontWeight:'600',letterSpacing:'1px',textTransform:'uppercase' }}>SQL</span>
+                        <button onClick={() => navigator.clipboard.writeText(msg.sql)}
+                          style={{ fontSize:'10px',color:'#64748b',background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:'3px' }}>
+                          <Copy className="w-3 h-3" /> Copy
+                        </button>
+                      </div>
+                      <pre style={{ background:'#0f172a',margin:0,padding:'8px 10px',fontSize:'11px',color:'#86efac',fontFamily:'monospace',whiteSpace:'pre-wrap',overflowX:'auto' }}>{msg.sql}</pre>
+                    </div>
+                  )}
+                </div>
+              )}
               {msg.results?.length > 0 && (
                 <div className="mt-2 overflow-x-auto rounded-lg" style={{ border:`1px solid ${t.border}` }}>
                   <table className="w-full text-xs border-collapse">
@@ -550,20 +601,33 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
             </div>
           </div>
         ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2"
-              style={{ background: t.surfaceHover||t.surface, border:`1px solid ${t.border}` }}>
-              <div className="flex gap-1">
-                {[0,1,2].map(i => (
-                  <div key={i} className="w-1.5 h-1.5 rounded-full animate-bounce"
-                    style={{ background: t.accent, animationDelay:`${i*.15}s` }} />
-                ))}
+
+        {/* Multi-stage progress indicator */}
+        {loading && (() => {
+          const StageIcon = QUERY_STAGES[stage]?.icon || Activity;
+          return (
+            <div className="flex justify-start">
+              <div className="rounded-2xl rounded-tl-sm px-4 py-3"
+                style={{ background: t.surfaceHover||t.surface, border:`1px solid ${t.border}`, minWidth: '200px' }}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div style={{ width:'24px',height:'24px',borderRadius:'6px',background:`${t.accent}18`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+                    <StageIcon className="w-3.5 h-3.5 animate-pulse" style={{ color: t.accent }} />
+                  </div>
+                  <span className="text-xs font-medium" style={{ color: t.textSub }}>
+                    {QUERY_STAGES[stage]?.label || 'Processing…'}
+                  </span>
+                </div>
+                {/* Stage progress bar */}
+                <div className="flex gap-1">
+                  {QUERY_STAGES.map((_, i) => (
+                    <div key={i} className="h-1 rounded-full flex-1 transition-all duration-500"
+                      style={{ background: i <= stage ? t.accent : `${t.accent}20` }} />
+                  ))}
+                </div>
               </div>
-              <span className="text-xs" style={{ color: t.textMuted }}>Thinking…</span>
             </div>
-          </div>
-        )}
+          );
+        })()}
         <div ref={bottomRef} />
       </div>
 
@@ -735,6 +799,42 @@ const ThemeSelector = () => {
   );
 };
 
+// ─── Ask AI Drawer Header (RAG-aware) ────────────────────────────────────────
+const AskAIDrawerHeader = ({ ragActive, onClose, theme: t }) => (
+  <div style={{
+    display:'flex',alignItems:'center',justifyContent:'space-between',
+    padding:'14px 16px',flexShrink:0,
+    background: ragActive
+      ? 'linear-gradient(135deg,#047857 0%,#059669 100%)'
+      : `linear-gradient(135deg,${t.accent} 0%,${t.accentHover||t.accent} 100%)`,
+    transition:'background .3s ease',
+  }}>
+    <div style={{ display:'flex',alignItems:'center',gap:'10px' }}>
+      <div style={{ width:'30px',height:'30px',borderRadius:'8px',background:'rgba(255,255,255,.2)',display:'flex',alignItems:'center',justifyContent:'center' }}>
+        <Sparkles style={{ width:'14px',height:'14px',color:'#fff' }} />
+      </div>
+      <div>
+        <div style={{ display:'flex',alignItems:'center',gap:'6px' }}>
+          <p style={{ color:'#fff',fontSize:'13px',fontWeight:'700',margin:0 }}>
+            {ragActive ? 'Ask AI (SQL Data + Docs)' : 'Ask AI'}
+          </p>
+          {ragActive && (
+            <span style={{ fontSize:'9px',fontWeight:'700',letterSpacing:'0.5px',background:'rgba(255,255,255,.2)',color:'#fff',padding:'1px 5px',borderRadius:'4px',textTransform:'uppercase' }}>
+              RAG
+            </span>
+          )}
+        </div>
+        <p style={{ color:'rgba(255,255,255,.65)',fontSize:'10px',margin:0 }}>
+          Llama 3.3 · 70B{ragActive ? ' · Docs indexed' : ''}
+        </p>
+      </div>
+    </div>
+    <button onClick={onClose} style={{ background:'rgba(255,255,255,.15)',border:'none',borderRadius:'6px',cursor:'pointer',padding:'5px',color:'#fff',display:'flex' }}>
+      <X style={{ width:'14px',height:'14px' }} />
+    </button>
+  </div>
+);
+
 // ─── Main Dashboard Shell ─────────────────────────────────────────────────────
 const Dashboard = ({ user, onLogout }) => {
   const { theme: t } = useTheme();
@@ -748,6 +848,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
   const [topQuery, setTopQuery] = useState('');
+  const [ragActive, setRagActive] = useState(false);
 
   const [convPages, setConvPages] = useState({ 1: [{ id: 1, name: 'Page 1' }] });
   const [convActivePage, setConvActivePage] = useState({ 1: 1 });
@@ -755,6 +856,10 @@ const Dashboard = ({ user, onLogout }) => {
   const [renamePageText, setRenamePageText] = useState('');
 
   const saveTimerRef = useRef(null);
+  const convPagesRef = useRef(convPages);
+  const activeConvIdRef = useRef(activeConvId);
+  useEffect(() => { convPagesRef.current = convPages; }, [convPages]);
+  useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
 
   const saveSession = useCallback((convs, activeId) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -824,9 +929,28 @@ const Dashboard = ({ user, onLogout }) => {
   };
 
   const handleChartsLoaded = (charts) => {
+    if (!charts?.length) return;
     setConversations(prev => prev.map(c => {
-      if (c.id !== activeConvId || c.charts?.length) return c;
-      return { ...c, charts: charts.map(ch => ({ ...ch, query:'Initial Dashboard', created_at:ch.created_at||new Date().toISOString() })) };
+      if (c.id !== activeConvId) return c;
+      const existing = c.charts || [];
+      // Build a lookup of fresh charts that have real data
+      const freshById = {};
+      charts.forEach(ch => { if (ch.data?.length > 0) freshById[ch.chart_id] = ch; });
+      // Update existing gallery entries with fresh data where available
+      const updated = existing.map(ch => {
+        const fresh = freshById[ch.chart_id];
+        return fresh ? { ...ch, data: fresh.data } : ch;
+      });
+      // Add brand-new charts not yet in the gallery
+      const existingIds = new Set(existing.map(ch => ch.chart_id));
+      const newOnes = charts
+        .filter(ch => !existingIds.has(ch.chart_id) && ch.data?.length > 0)
+        .map(ch => ({
+          ...ch,
+          query: ch.query || 'Dashboard',
+          created_at: ch.created_at || new Date().toISOString(),
+        }));
+      return { ...c, charts: [...updated, ...newOnes] };
     }));
   };
 
@@ -876,6 +1000,29 @@ const Dashboard = ({ user, onLogout }) => {
     setRenamingPageId(null);
   };
 
+  // Returns { newSessionId, activate(topic) } — called BEFORE the API request so the
+  // backend gets the correct (new) session id. activate() is called AFTER the response
+  // to navigate to the new page (by then the dashboard is already saved in Redis).
+  const prepareFullDashboard = useCallback(() => {
+    const convId = activeConvIdRef.current;
+    const pages = convPagesRef.current[convId] || [{ id: 1, name: 'Page 1' }];
+    const newId = Math.max(...pages.map(p => p.id)) + 1;
+    const newSessionId = `session-${convId}-p${newId}`;
+    return {
+      newSessionId,
+      activate: (topic) => {
+        const pageName = topic
+          ? `${topic.charAt(0).toUpperCase() + topic.slice(1)} Dashboard`
+          : `Dashboard ${newId}`;
+        setConvPages(prev => ({
+          ...prev,
+          [convId]: [...(prev[convId] || [{ id: 1, name: 'Page 1' }]), { id: newId, name: pageName }],
+        }));
+        setConvActivePage(prev => ({ ...prev, [convId]: newId }));
+      },
+    };
+  }, []);
+
   useEffect(() => {
     if (scrollToIndex !== null) {
       const timer = setTimeout(() => setScrollToIndex(null), 500);
@@ -883,24 +1030,69 @@ const Dashboard = ({ user, onLogout }) => {
     }
   }, [scrollToIndex]);
 
+  // Check RAG status on mount and after chat interactions
+  useEffect(() => {
+    const checkRag = async () => {
+      try {
+        const token = sessionStorage.getItem('token');
+        const res = await axios.get(`${API_URL}/rag/sources`, { headers: { Authorization: `Bearer ${token}` } });
+        setRagActive((res.data.sources?.length || 0) > 0);
+      } catch { setRagActive(false); }
+    };
+    checkRag();
+  }, []);
+
+  const _FULL_DASH_KWS = [
+    'full dashboard', 'full analysis', 'complete overview', 'complete analysis',
+    'give me a dashboard', 'generate dashboard', 'create dashboard', 'dashboard for',
+    'analytics dashboard', 'full report', 'overview dashboard', 'overview of',
+    'show dashboard', 'build dashboard', 'show me everything', 'all metrics',
+    'show all', 'populate dashboard', 'fill dashboard',
+    // natural phrasing variants
+    'dashboard based on', 'dashboard about', 'dashboard on',
+    'make a dashboard', 'make dashboard', 'make me a dashboard',
+    'create a dashboard', 'generate a dashboard', 'give me the dashboard',
+    'build me a dashboard', 'build a dashboard',
+  ];
+  const _detectTopic = (text) => {
+    const t = text.toLowerCase();
+    for (const kw of ['customer', 'product', 'order', 'employee', 'supplier', 'revenue', 'sales']) {
+      if (t.includes(kw)) return kw;
+    }
+    return null;
+  };
+
   // Send query from top NL bar
   const handleTopQuery = async (q) => {
     if (!q.trim()) return;
     setTopQuery('');
     setChatOpen(true);
     setActiveNav('dashboard');
+
+    const isFullDash = _FULL_DASH_KWS.some(kw => q.toLowerCase().includes(kw));
+    let targetSessionId = dashSessionId;
+    let activateNewPage = null;
+    if (isFullDash) {
+      const { newSessionId, activate } = prepareFullDashboard();
+      targetSessionId = newSessionId;
+      activateNewPage = activate;
+    }
+
     setMessages(prev => [...prev, { type:'user', content:q, timestamp:new Date().toISOString() }]);
     try {
       const token = sessionStorage.getItem('token');
       const res = await axios.post(`${API_URL}/query`,
-        { question:q, session_id:dashSessionId },
+        { question:q, session_id:targetSessionId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      const ai = { type:'ai', content:res.data.explanation||'Query processed successfully.', sql:res.data.sql, results:res.data.results||[], execution_time:res.data.execution_time, chart:res.data.chart, sessionId:dashSessionId, timestamp:new Date().toISOString() };
+      const ai = { type:'ai', content:res.data.explanation||'Query processed successfully.', sql:res.data.sql, results:res.data.results||[], execution_time:res.data.execution_time, chart:res.data.chart, sessionId:targetSessionId, timestamp:new Date().toISOString() };
       setMessages(prev => [...prev, ai]);
       if (res.data.chart) handleChartCreated({...res.data.chart, query:q, created_at:new Date().toISOString()});
-      if (res.data.chart?.auto_added||res.data.full_dashboard_generated)
+      if (res.data.full_dashboard_generated && activateNewPage) {
+        activateNewPage(_detectTopic(q));
+      } else if (res.data.chart?.auto_added || res.data.full_dashboard_generated) {
         setTimeout(() => window.dispatchEvent(new CustomEvent('refreshDashboard')), 500);
+      }
     } catch (err) {
       const detail = err.response?.data?.detail;
       setMessages(prev => [...prev, { type:'error', content:typeof detail==='string'?detail:'Something went wrong.', timestamp:new Date().toISOString() }]);
@@ -937,11 +1129,13 @@ const Dashboard = ({ user, onLogout }) => {
   const sidebarW = sidebarOpen ? 220 : 56;
 
   return (
-    <div style={{ display:'flex',height:'100vh',overflow:'hidden',background:t.bg,fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
+    <div style={{ display:'flex',height:'100vh',overflow:'hidden',background:t.bg,fontFamily:"'Inter','Segoe UI',system-ui,sans-serif" }}>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         @keyframes slideInRight{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
         .iq-nav:hover{opacity:.85!important}
         .iq-conv:hover .iq-cact{opacity:1!important}
+        .iq-page-tab:hover .iq-page-del{opacity:1!important}
       `}</style>
 
       {/* ── Sidebar ── */}
@@ -1023,7 +1217,7 @@ const Dashboard = ({ user, onLogout }) => {
                         style={{ width:'100%',display:'flex',alignItems:'center',gap:'6px',padding:'7px 10px',borderRadius:'10px',border:'none',cursor:'pointer',background:activeConvId===conv.id?t.sidebarBgActive:'transparent',color:activeConvId===conv.id?t.sidebarTextActive:t.sidebarText,fontSize:'11px',fontWeight:activeConvId===conv.id?'600':'400' }}>
                         <MessageSquare style={{ width:'12px',height:'12px',flexShrink:0 }} />
                         <span style={{ flex:1,textAlign:'left',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{conv.title}</span>
-                        <div className="iq-cact" style={{ display:'flex',gap:'2px',opacity:0,transition:'opacity .15s' }}>
+                        <div className="iq-cact" style={{ display:'flex',gap:'2px',opacity:0.4,transition:'opacity .15s' }}>
                           <button onClick={e=>{e.stopPropagation();startEdit(conv.id,conv.title);}} style={{ background:'none',border:'none',cursor:'pointer',padding:'2px',color:t.textMuted }}><Edit2 style={{width:'10px',height:'10px'}}/></button>
                           {conversations.length>1 && <button onClick={e=>{e.stopPropagation();deleteConversation(conv.id);}} style={{ background:'none',border:'none',cursor:'pointer',padding:'2px',color:'#ef4444' }}><Trash2 style={{width:'10px',height:'10px'}}/></button>}
                         </div>
@@ -1091,9 +1285,11 @@ const Dashboard = ({ user, onLogout }) => {
 
           {/* Right controls */}
           <div style={{ display:'flex',alignItems:'center',gap:'6px',flexShrink:0 }}>
-            <div title="Knowledge Base — RAG Active" style={{ display:'flex',alignItems:'center',gap:'5px',padding:'5px 10px',borderRadius:'8px',background:t.accentLight,border:`1px solid ${t.border}`,fontSize:'11px',color:t.textSub,cursor:'default' }}>
+            <div
+              title={ragActive ? 'RAG Active — Documents indexed' : 'RAG Inactive — No documents uploaded'}
+              style={{ display:'flex',alignItems:'center',gap:'5px',padding:'5px 10px',borderRadius:'8px',background:ragActive?'rgba(16,185,129,.1)':t.accentLight,border:`1px solid ${ragActive?'rgba(16,185,129,.25)':t.border}`,fontSize:'11px',color:ragActive?'#059669':t.textSub,cursor:'default',transition:'all .3s' }}>
               <BookOpen style={{ width:'13px',height:'13px' }} />
-              <div style={{ width:'6px',height:'6px',borderRadius:'50%',background:'#10b981',boxShadow:'0 0 6px rgba(16,185,129,.6)' }} />
+              <div style={{ width:'6px',height:'6px',borderRadius:'50%',background:ragActive?'#10b981':'#94a3b8',boxShadow:ragActive?'0 0 6px rgba(16,185,129,.6)':'none',transition:'all .3s' }} />
             </div>
             <button style={{ background:'none',border:'none',cursor:'pointer',padding:'6px',borderRadius:'8px',color:t.textMuted,display:'flex' }}>
               <Bell style={{ width:'16px',height:'16px' }} />
@@ -1104,110 +1300,104 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
         </header>
 
-        {/* Content */}
-        <div style={{ flex:1,display:'flex',overflow:'hidden',position:'relative' }}>
+        {/* Content — flex row so chat drawer pushes dashboard left instead of overlaying */}
+        <div style={{ flex:1,display:'flex',overflow:'hidden' }}>
 
-          {activeNav==='history' && <HistoryTab messages={activeConv?.messages||[]} onClickQuery={handleHistoryClick} />}
+          {/* ── Main area ── */}
+          <div style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0 }}>
 
-          {activeNav==='visualizations' && (
-            <VisualizationHistory
-              charts={activeConv?.charts||[]}
-              onRestoreChart={async (chart) => {
-                try {
-                  const token = sessionStorage.getItem('token');
-                  await fetch(`${API_URL}/dashboard/add-chart`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({session_id:dashSessionId,query:chart.query||chart.title||'',sql:'',result:{success:true,data:chart.data||[]}})});
-                  window.dispatchEvent(new CustomEvent('refreshDashboard'));
-                } catch {}
-              }}
-              onClearHistory={()=>setConversations(prev=>prev.map(c=>c.id===activeConvId?{...c,charts:[]}:c))}
-            />
-          )}
+            {activeNav==='history' && <HistoryTab messages={activeConv?.messages||[]} onClickQuery={handleHistoryClick} />}
 
-          {/* Placeholder pages */}
-          {(activeNav==='data'||activeNav==='reports'||activeNav==='security') && (
-            <div style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'center',background:t.bg }}>
-              <div style={{ textAlign:'center' }}>
-                <div style={{ width:'48px',height:'48px',borderRadius:'14px',background:t.accentLight,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px' }}>
-                  {activeNav==='data' && <Database style={{width:'22px',height:'22px',color:t.accent}}/>}
-                  {activeNav==='reports' && <FileText style={{width:'22px',height:'22px',color:t.accent}}/>}
-                  {activeNav==='security' && <Shield style={{width:'22px',height:'22px',color:t.accent}}/>}
+            {activeNav==='visualizations' && (
+              <VisualizationHistory
+                charts={activeConv?.charts||[]}
+                onRestoreChart={async (chart) => {
+                  try {
+                    const token = sessionStorage.getItem('token');
+                    await fetch(`${API_URL}/dashboard/add-chart`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({session_id:dashSessionId,query:chart.query||chart.title||'',sql:'',result:{success:true,data:chart.data||[]}})});
+                    window.dispatchEvent(new CustomEvent('refreshDashboard'));
+                  } catch {}
+                }}
+                onClearHistory={()=>setConversations(prev=>prev.map(c=>c.id===activeConvId?{...c,charts:[]}:c))}
+              />
+            )}
+
+            {/* Placeholder pages */}
+            {(activeNav==='data'||activeNav==='reports'||activeNav==='security') && (
+              <div style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'center',background:t.bg }}>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ width:'48px',height:'48px',borderRadius:'14px',background:t.accentLight,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px' }}>
+                    {activeNav==='data' && <Database style={{width:'22px',height:'22px',color:t.accent}}/>}
+                    {activeNav==='reports' && <FileText style={{width:'22px',height:'22px',color:t.accent}}/>}
+                    {activeNav==='security' && <Shield style={{width:'22px',height:'22px',color:t.accent}}/>}
+                  </div>
+                  <p style={{ fontWeight:'700',color:t.text,marginBottom:'6px' }}>
+                    {activeNav==='data'?'Data Sources':activeNav==='reports'?'Reports':'Security (RLS)'}
+                  </p>
+                  <p style={{ fontSize:'13px',color:t.textMuted }}>Coming soon</p>
                 </div>
-                <p style={{ fontWeight:'700',color:t.text,marginBottom:'6px' }}>
-                  {activeNav==='data'?'Data Sources':activeNav==='reports'?'Reports':'Security (RLS)'}
-                </p>
-                <p style={{ fontSize:'13px',color:t.textMuted }}>Coming soon</p>
+              </div>
+            )}
+
+            {/* Dashboard — always mounted */}
+            <div style={{ display:activeNav==='dashboard'?'flex':'none',flex:1,flexDirection:'column',overflow:'hidden' }}>
+              <div style={{ flex:1,overflow:'hidden' }}>
+                <DashboardContainer
+                  key={dashSessionId}
+                  sessionId={dashSessionId}
+                  onChartsLoaded={handleChartsLoaded}
+                  onChartBuilderAdded={handleChartBuilderAdded}
+                />
+              </div>
+
+              {/* Power BI page tabs */}
+              <div style={{ display:'flex',alignItems:'center',borderTop:`1px solid ${t.border}`,overflowX:'auto',background:t.header,minHeight:'36px',paddingLeft:'12px',flexShrink:0 }}>
+                {activePages.map(page => {
+                  const isActive = page.id===activeDashPage;
+                  const isRenaming = renamingPageId===page.id;
+                  return (
+                    <div key={page.id} style={{ position:'relative',display:'flex',alignItems:'center',flexShrink:0,marginRight:'2px' }}>
+                      <div className="iq-page-tab" style={{ display:'flex',alignItems:'center',gap:'4px',padding:'6px 12px',borderRadius:'6px 6px 0 0',cursor:'pointer',background:isActive?t.bg:'transparent',color:isActive?t.text:t.textMuted,fontWeight:isActive?'600':'400',fontSize:'11.5px',border:isActive?`1px solid ${t.border}`:'1px solid transparent',borderBottom:isActive?`1px solid ${t.bg}`:'1px solid transparent',marginBottom:isActive?'-1px':'0',userSelect:'none' }}
+                        onClick={()=>!isRenaming&&switchPage(activeConvId,page.id)}
+                        onDoubleClick={()=>startRenamePage(page.id,page.name)}>
+                        {isRenaming ? (
+                          <input autoFocus value={renamePageText} onChange={e=>setRenamePageText(e.target.value)}
+                            onKeyDown={e=>{if(e.key==='Enter')savePageRename(activeConvId,page.id);if(e.key==='Escape')setRenamingPageId(null);}}
+                            onBlur={()=>savePageRename(activeConvId,page.id)}
+                            onClick={e=>e.stopPropagation()}
+                            style={{ width:'64px',fontSize:'11px',background:'transparent',border:'none',outline:'none',color:t.text }} />
+                        ) : <span>{page.name}</span>}
+                        {activePages.length>1&&!isRenaming && (
+                          <button onClick={e=>{e.stopPropagation();deletePage(activeConvId,page.id);}}
+                            className="iq-page-del"
+                            style={{ background:'none',border:'none',cursor:'pointer',padding:'1px',color:t.textMuted,opacity:0.45,transition:'opacity .15s' }}>
+                            <X style={{width:'9px',height:'9px'}}/>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                <button onClick={()=>addPage(activeConvId)} style={{ width:'20px',height:'20px',borderRadius:'5px',marginLeft:'4px',display:'flex',alignItems:'center',justifyContent:'center',background:t.accentLight,border:'none',cursor:'pointer',color:t.textMuted }}>
+                  <Plus style={{width:'11px',height:'11px'}}/>
+                </button>
+                <span style={{ marginLeft:'10px',fontSize:'10px',color:t.textMuted,opacity:.45,whiteSpace:'nowrap' }}>Double-click to rename</span>
               </div>
             </div>
-          )}
 
-          {/* Dashboard — always mounted */}
-          <div style={{ display:activeNav==='dashboard'?'flex':'none',flex:1,flexDirection:'column',overflow:'hidden' }}>
-            <div style={{ flex:1,overflow:'hidden' }}>
-              <DashboardContainer
-                sessionId={dashSessionId}
-                onChartsLoaded={handleChartsLoaded}
-                onChartBuilderAdded={handleChartBuilderAdded}
-              />
-            </div>
+          </div>{/* end main area */}
 
-            {/* Power BI page tabs */}
-            <div style={{ display:'flex',alignItems:'center',borderTop:`1px solid ${t.border}`,overflowX:'auto',background:t.header,minHeight:'36px',paddingLeft:'12px',flexShrink:0 }}>
-              {activePages.map(page => {
-                const isActive = page.id===activeDashPage;
-                const isRenaming = renamingPageId===page.id;
-                return (
-                  <div key={page.id} style={{ position:'relative',display:'flex',alignItems:'center',flexShrink:0,marginRight:'2px' }}>
-                    <div style={{ display:'flex',alignItems:'center',gap:'4px',padding:'6px 12px',borderRadius:'6px 6px 0 0',cursor:'pointer',background:isActive?t.bg:'transparent',color:isActive?t.text:t.textMuted,fontWeight:isActive?'600':'400',fontSize:'11.5px',border:isActive?`1px solid ${t.border}`:'1px solid transparent',borderBottom:isActive?`1px solid ${t.bg}`:'1px solid transparent',marginBottom:isActive?'-1px':'0',userSelect:'none' }}
-                      onClick={()=>!isRenaming&&switchPage(activeConvId,page.id)}
-                      onDoubleClick={()=>startRenamePage(page.id,page.name)}>
-                      {isRenaming ? (
-                        <input autoFocus value={renamePageText} onChange={e=>setRenamePageText(e.target.value)}
-                          onKeyDown={e=>{if(e.key==='Enter')savePageRename(activeConvId,page.id);if(e.key==='Escape')setRenamingPageId(null);}}
-                          onBlur={()=>savePageRename(activeConvId,page.id)}
-                          onClick={e=>e.stopPropagation()}
-                          style={{ width:'64px',fontSize:'11px',background:'transparent',border:'none',outline:'none',color:t.text }} />
-                      ) : <span>{page.name}</span>}
-                      {activePages.length>1&&!isRenaming && (
-                        <button onClick={e=>{e.stopPropagation();deletePage(activeConvId,page.id);}}
-                          style={{ background:'none',border:'none',cursor:'pointer',padding:'1px',color:t.textMuted,opacity:0 }}>
-                          <X style={{width:'9px',height:'9px'}}/>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              <button onClick={()=>addPage(activeConvId)} style={{ width:'20px',height:'20px',borderRadius:'5px',marginLeft:'4px',display:'flex',alignItems:'center',justifyContent:'center',background:t.accentLight,border:'none',cursor:'pointer',color:t.textMuted }}>
-                <Plus style={{width:'11px',height:'11px'}}/>
-              </button>
-              <span style={{ marginLeft:'10px',fontSize:'10px',color:t.textMuted,opacity:.45,whiteSpace:'nowrap' }}>Double-click to rename</span>
-            </div>
-          </div>
-
-          {/* ── Ask AI Drawer (no background blur on main content) ── */}
+          {/* ── Ask AI Drawer — flex sibling so it never overlaps the dashboard ── */}
           {chatOpen && (
             <div style={{
-              position:'absolute',right:0,top:0,bottom:0,width:'340px',
+              width:'340px',flexShrink:0,
               background:t.surface,borderLeft:`1px solid ${t.border}`,
-              zIndex:50,display:'flex',flexDirection:'column',
-              boxShadow:'-16px 0 60px rgba(0,0,0,.22)',
+              display:'flex',flexDirection:'column',
+              boxShadow:'-8px 0 32px rgba(0,0,0,.14)',
               animation:'slideInRight .22s ease',
             }}>
-              {/* Drawer header */}
-              <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',flexShrink:0,background:`linear-gradient(135deg,${t.accent} 0%,${t.accentHover||t.accent} 100%)` }}>
-                <div style={{ display:'flex',alignItems:'center',gap:'10px' }}>
-                  <div style={{ width:'30px',height:'30px',borderRadius:'8px',background:'rgba(255,255,255,.2)',display:'flex',alignItems:'center',justifyContent:'center' }}>
-                    <Sparkles style={{ width:'14px',height:'14px',color:'#fff' }} />
-                  </div>
-                  <div>
-                    <p style={{ color:'#fff',fontSize:'13px',fontWeight:'700',margin:0 }}>Ask AI</p>
-                    <p style={{ color:'rgba(255,255,255,.65)',fontSize:'10px',margin:0 }}>Llama 3.3 · 70B</p>
-                  </div>
-                </div>
-                <button onClick={()=>setChatOpen(false)} style={{ background:'rgba(255,255,255,.15)',border:'none',borderRadius:'6px',cursor:'pointer',padding:'5px',color:'#fff',display:'flex' }}>
-                  <X style={{ width:'14px',height:'14px' }} />
-                </button>
-              </div>
+              {/* Drawer header — green when RAG docs are present */}
+              <AskAIDrawerHeader ragActive={ragActive} onClose={()=>setChatOpen(false)} theme={t} />
 
               <div style={{ flex:1,overflow:'hidden',display:'flex',flexDirection:'column' }}>
                 <ChatPanel
@@ -1217,6 +1407,7 @@ const Dashboard = ({ user, onLogout }) => {
                   sessionId={dashSessionId}
                   onChartCreated={handleChartCreated}
                   hideHeader={true}
+                  onPrepareFullDashboard={prepareFullDashboard}
                 />
               </div>
             </div>

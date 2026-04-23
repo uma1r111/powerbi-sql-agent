@@ -1,7 +1,8 @@
 // frontend/src/components/Dashboard/DashboardContainer.jsx
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { RefreshCw, Loader2, AlertCircle, X, Plus, Wand2 } from 'lucide-react';
+import { RefreshCw, Loader2, AlertCircle, X, Plus, Wand2, Download, FileText, Image as ImageIcon } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -21,12 +22,19 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
     const [error, setError] = useState(null);
     const [removedChartIds, setRemovedChartIds] = useState(new Set());
     const [activeFilter, setActiveFilter] = useState(null);
-    const [gridWidth, setGridWidth] = useState(800);
+    const [gridWidth, setGridWidth] = useState(0);        // 0 = not yet measured
     const [containerHeight, setContainerHeight] = useState(600);
     const [showBuilder, setShowBuilder] = useState(false);
+    const [exporting, setExporting] = useState(false);
+    const [showExportMenu, setShowExportMenu] = useState(false);
+    // Prevent the RGL "slide-in" animation on first render: items animate from
+    // their default positions to their grid positions while the container measures
+    // itself.  We suppress transitions until the grid width has been set at least once.
+    const [gridReady, setGridReady] = useState(false);
 
     const observerRef = useRef(null);
     const refreshFromCurrentRef = useRef(null);
+    const gridRef = useRef(null);
 
     useEffect(() => { loadDashboard(); }, [sessionId]);
 
@@ -35,11 +43,17 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
         observerRef.current = null;
         if (node) {
             const rect = node.getBoundingClientRect();
-            setGridWidth(rect.width || 800);
-            setContainerHeight(rect.height || 600);
+            if (rect.width > 0) {
+                setGridWidth(rect.width);
+                setContainerHeight(rect.height || 600);
+                setGridReady(true);
+            }
             const ro = new ResizeObserver(entries => {
                 for (const e of entries) {
-                    if (e.contentRect.width > 0) setGridWidth(e.contentRect.width);
+                    if (e.contentRect.width > 0) {
+                        setGridWidth(e.contentRect.width);
+                        setGridReady(true);
+                    }
                     if (e.contentRect.height > 0) setContainerHeight(e.contentRect.height);
                 }
             });
@@ -66,8 +80,16 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
 
             if (cached.ok) {
                 const data = await cached.json();
-                if (data?.dashboard?.charts?.length > 0) {
-                    const charts = data.dashboard.charts.filter(c => !removedChartIds.has(c.chart_id));
+                const cachedCharts = data?.dashboard?.charts || [];
+                // Only use cache when the dashboard is "high quality":
+                // - at least 4 charts, AND
+                // - contains at least one non-KPI visualisation
+                // A dashboard with only 2-3 KPIs (or all-KPI) is considered stale/incomplete
+                // and is discarded so /initial regenerates a proper dashboard.
+                const hasNonKPI = cachedCharts.some(c => c.type !== 'kpi');
+                const isGoodCache = cachedCharts.length >= 4 && hasNonKPI;
+                if (isGoodCache) {
+                    const charts = cachedCharts.filter(c => !removedChartIds.has(c.chart_id));
                     setDashboard({ ...data.dashboard, charts });
                     onChartsLoaded?.(charts);
                     setLoading(false);
@@ -110,6 +132,48 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
         setRefreshing(true);
         await loadDashboard();
         setRefreshing(false);
+    };
+
+    const exportDashboardPNG = async () => {
+        if (!gridRef.current) return;
+        setExporting(true);
+        setShowExportMenu(false);
+        try {
+            await new Promise(r => setTimeout(r, 100));
+            const dataUrl = await toPng(gridRef.current, { backgroundColor: t.bg, pixelRatio: 2 });
+            const a = Object.assign(document.createElement('a'), {
+                href: dataUrl,
+                download: `dashboard-${new Date().toISOString().slice(0,10)}.png`
+            });
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        } catch (e) { console.error(e); }
+        finally { setExporting(false); }
+    };
+
+    const exportAllCSV = () => {
+        if (!dashboard?.charts?.length) return;
+        setShowExportMenu(false);
+        const sections = dashboard.charts
+            .filter(c => c.data?.length)
+            .map(c => {
+                const headers = Object.keys(c.data[0]);
+                const rows = c.data.map(row =>
+                    headers.map(h => {
+                        const v = row[h];
+                        return typeof v === 'string' && (v.includes(',') || v.includes('"'))
+                            ? `"${v.replace(/"/g, '""')}"` : (v ?? '');
+                    }).join(',')
+                );
+                return `# ${c.title}\n${headers.join(',')}\n${rows.join('\n')}`;
+            });
+        const blob = new Blob([sections.join('\n\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = Object.assign(document.createElement('a'), {
+            href: url,
+            download: `dashboard-export-${new Date().toISOString().slice(0,10)}.csv`
+        });
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
     };
 
     const removeChart = async (chartId) => {
@@ -350,6 +414,36 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
                             Add Chart
                         </button>
 
+                        {/* Export menu */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowExportMenu(!showExportMenu)}
+                                disabled={exporting}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all disabled:opacity-50"
+                                style={{ background: t.surface, color: t.textSub, borderColor: t.border }}>
+                                <Download className={`w-3.5 h-3.5 ${exporting ? 'animate-pulse' : ''}`} />
+                                Export
+                            </button>
+                            {showExportMenu && (
+                                <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+                                    <div className="absolute right-0 mt-1 w-44 rounded-xl shadow-xl border py-1 z-50"
+                                        style={{ background: t.surface, borderColor: t.border }}>
+                                        <button onClick={exportDashboardPNG}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:opacity-70"
+                                            style={{ color: t.text }}>
+                                            <ImageIcon className="w-4 h-4" /> Export as PNG
+                                        </button>
+                                        <button onClick={exportAllCSV}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:opacity-70"
+                                            style={{ color: t.text }}>
+                                            <FileText className="w-4 h-4" /> Export All as CSV
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
                         <button
                             onClick={refreshDashboard}
                             disabled={refreshing}
@@ -375,33 +469,43 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
                 )}
 
                 {/* Grid — fills remaining height, scrolls when charts overflow */}
-                <div ref={gridContainerRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px' }}>
-                    <GridLayout
-                        className="layout"
-                        layout={layout}
-                        cols={12}
-                        rowHeight={rowHeight}
-                        width={gridWidth}
-                        isDraggable
-                        isResizable
-                        compactType="vertical"
-                        preventCollision={false}
-                        margin={[10, 10]}
-                        onLayoutChange={handleLayoutChange}
-                    >
-                        {dashboard.charts.map((chart) => (
-                            <div key={chart.chart_id}>
-                                <ChartCard
-                                    chart={chart}
-                                    activeFilter={activeFilter}
-                                    onFilterSelect={handleChartFilter}
-                                    onRemove={removeChart}
-                                    onChartUpdate={handleChartUpdate}
-                                    theme={t}
-                                />
-                            </div>
-                        ))}
-                    </GridLayout>
+                <div ref={node => { gridContainerRef(node); if (node) gridRef.current = node; }} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px' }}>
+                    {/* Suppress the RGL slide-in animation completely.
+                        Items slide because the grid width changes from 0→real on first measure.
+                        Disabling transitions here removes the glitch without affecting drag UX
+                        (react-grid-layout already sets transition:none during active drags). */}
+                    <style>{`
+                        .react-grid-item { transition: none !important; }
+                        .react-grid-item.react-grid-placeholder { display: none !important; }
+                    `}</style>
+                    {gridReady && (
+                        <GridLayout
+                            className="layout"
+                            layout={layout}
+                            cols={12}
+                            rowHeight={rowHeight}
+                            width={gridWidth}
+                            isDraggable
+                            isResizable
+                            compactType="vertical"
+                            preventCollision={false}
+                            margin={[10, 10]}
+                            onLayoutChange={handleLayoutChange}
+                        >
+                            {dashboard.charts.map((chart) => (
+                                <div key={chart.chart_id}>
+                                    <ChartCard
+                                        chart={chart}
+                                        activeFilter={activeFilter}
+                                        onFilterSelect={handleChartFilter}
+                                        onRemove={removeChart}
+                                        onChartUpdate={handleChartUpdate}
+                                        theme={t}
+                                    />
+                                </div>
+                            ))}
+                        </GridLayout>
+                    )}
                 </div>
             </div>
 

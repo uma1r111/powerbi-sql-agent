@@ -71,9 +71,13 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove, onChartUpdat
     const selectedValue = (activeFilter && hasMatchingKey) ? String(activeFilter.value) : null;
     const onSelect      = (key, value) => onFilterSelect?.(chart.chart_id, key, value);
 
-    const renderChart = (c = chart) => {
-        const props = { chart: c, selectedKey, selectedValue, onSelect };
-        switch (c.type) {
+    // Render chart — when edit panel is open, apply live preview overrides (color + type)
+    const renderChart = (c = chart, livePreview = false) => {
+        const previewChart = livePreview && showEditPanel
+            ? { ...c, type: editType, config: { ...c.config, color: editColor } }
+            : c;
+        const props = { chart: previewChart, selectedKey, selectedValue, onSelect, theme: t };
+        switch (previewChart.type) {
             case 'kpi':      return <KPICard {...props} />;
             case 'bar':      return <BarChartComponent {...props} />;
             case 'line':     return <LineChartComponent {...props} />;
@@ -89,7 +93,7 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove, onChartUpdat
             default:
                 return (
                     <div className="h-full flex items-center justify-center" style={{ color: t.textMuted }}>
-                        <p className="text-sm">Unsupported type: {c.type}</p>
+                        <p className="text-sm">Unsupported type: {previewChart.type}</p>
                     </div>
                 );
         }
@@ -268,11 +272,14 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove, onChartUpdat
                                     <option key={id} value={id}>{label}</option>
                                 ))}
                             </select>
-                            <div className="flex gap-1">
+                            <div className="flex gap-1 items-center">
+                                <span style={{ fontSize: '10px', color: t.textMuted, marginRight: '2px' }}>Color:</span>
                                 {COLORS_PALETTE.map(c => (
-                                    <button key={c} onClick={() => setEditColor(c)}
-                                        className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
-                                        style={{ background: c, borderColor: editColor === c ? t.text : 'transparent' }} />
+                                    <button key={c}
+                                        onClick={() => setEditColor(c)}
+                                        title={editColor === c ? 'Selected (preview active)' : 'Preview'}
+                                        className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-125"
+                                        style={{ background: c, borderColor: editColor === c ? '#fff' : 'transparent', boxShadow: editColor === c ? `0 0 0 2px ${c}` : 'none' }} />
                                 ))}
                             </div>
                             <button onClick={handleSaveEdit}
@@ -289,9 +296,9 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove, onChartUpdat
                     </div>
                 )}
 
-                {/* Chart */}
+                {/* Chart — live preview when edit panel is open */}
                 <div className="flex-1 p-3 overflow-hidden min-h-0">
-                    {renderChart()}
+                    {renderChart(chart, true)}
                 </div>
 
                 {/* Footer */}

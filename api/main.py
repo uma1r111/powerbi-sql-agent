@@ -428,16 +428,78 @@ async def process_query(
                 chart=None,
             )
 
+        # ── Chart type modification route ─────────────────────────────────────
+        _CHART_TYPE_MAP = {
+            'bar': 'bar', 'horizontal bar': 'bar', 'column': 'bar',
+            'line': 'line', 'trend': 'line',
+            'area': 'area', 'filled line': 'area',
+            'pie': 'pie', 'pie chart': 'pie',
+            'donut': 'donut', 'doughnut': 'donut',
+            'scatter': 'scatter', 'scatter plot': 'scatter',
+            'radar': 'radar', 'spider': 'radar',
+            'funnel': 'funnel',
+            'treemap': 'treemap', 'tree map': 'treemap',
+            'table': 'table', 'data table': 'table',
+        }
+        _CHART_MOD_PATTERNS = [
+            'change', 'convert', 'switch', 'make it', 'turn into',
+            'show as', 'display as', 'show it as', 'visualize as',
+        ]
+        q_lower = request.question.lower()
+        detected_type = None
+        is_chart_mod = any(p in q_lower for p in _CHART_MOD_PATTERNS)
+        if is_chart_mod:
+            for type_name, type_key in _CHART_TYPE_MAP.items():
+                if type_name in q_lower:
+                    detected_type = type_key
+                    break
+        if is_chart_mod and detected_type:
+            # Find the most recent non-KPI chart in the dashboard and update its type
+            try:
+                dash = dashboard_manager.get_dashboard(request.session_id)
+                if dash and dash.get('charts'):
+                    # Get the most recent non-KPI chart
+                    target = next(
+                        (c for c in reversed(dash['charts']) if c.get('type') != 'kpi'),
+                        None
+                    )
+                    if target:
+                        dashboard_manager.update_chart_config(
+                            session_id=request.session_id,
+                            chart_id=target['chart_id'],
+                            updates={'type': detected_type}
+                        )
+                        _save_session_context(request.session_id, request.question, 'chart_edit',
+                                              f"Changed {target['title']} to {detected_type}")
+                        return QueryResponse(
+                            success=True, sql=None, results=[],
+                            explanation=(
+                                f"Done! I've changed **{target['title']}** to a **{detected_type}** chart. "
+                                "The dashboard has been updated."
+                            ),
+                            warnings=[], error=None, execution_time=None, chart=None,
+                            full_dashboard_generated=True
+                        )
+            except Exception as e:
+                print(f"⚠️ Chart type change failed: {e}")
+            # Fall through to normal query processing if detection failed
+
         # ── Full Dashboard route ──────────────────────────────────────────────
         _full_db_kws = [
             'full dashboard', 'full analysis', 'complete overview', 'complete analysis',
             'give me a dashboard', 'generate dashboard', 'create dashboard', 'dashboard for',
-            'analytics dashboard', 'full report',
+            'analytics dashboard', 'full report', 'overview dashboard', 'overview of',
+            'show dashboard', 'build dashboard', 'show me everything', 'all metrics',
+            'show all', 'show the dashboard', 'populate dashboard', 'fill dashboard',
+            # natural phrasing variants
+            'dashboard based on', 'dashboard about', 'dashboard on',
+            'make a dashboard', 'make dashboard', 'make me a dashboard',
+            'create a dashboard', 'generate a dashboard', 'give me the dashboard',
+            'build me a dashboard', 'build a dashboard',
         ]
-        if any(kw in request.question.lower() for kw in _full_db_kws):
+        if any(kw in q_lower for kw in _full_db_kws):
             entity = 'sales'
-            q_lower = request.question.lower()
-            for kw in ['customer', 'product', 'order', 'employee', 'supplier', 'revenue']:
+            for kw in ['customer', 'product', 'order', 'employee', 'supplier', 'revenue', 'sales']:
                 if kw in q_lower:
                     entity = kw
                     break
@@ -486,12 +548,17 @@ async def process_query(
             )
             print(f"\n🔗 Context expansion: '{request.question}' → '{processed_query}'")
 
-        # Inject rolling conversation history for follow-up context
+        # Inject rolling conversation history (up to 10 turns) — always inject when available
         conversation_history = _get_conversation_history(request.session_id)
-        if conversation_history and response_type == 'follow_up':
-            context_str = "\n".join([f"Q: {h['q']}\nA: {h['a']}" for h in conversation_history[-5:]])
-            processed_query = f"[Context from previous queries:\n{context_str}\n]\n{processed_query}"
-            print(f"\n📚 Injected {len(conversation_history[-5:])} turns of context")
+        if conversation_history:
+            recent = conversation_history[-10:]
+            context_str = "\n".join([f"Q: {h['q']}\nA: {h['a'][:300]}" for h in recent])
+            processed_query = (
+                f"[Conversation context — last {len(recent)} exchange(s):\n"
+                f"{context_str}\n"
+                f"]\n{processed_query}"
+            )
+            print(f"\n📚 Injected {len(recent)} turns of context")
 
         preprocessed_query, corrections = preprocessor.preprocess(processed_query)
 
@@ -551,33 +618,15 @@ async def process_query(
         chart_config = None
         if query_results and len(query_results) > 0 and result.execution_successful:
             try:
-                # Only auto-add for EXPLICIT visualization requests
-                explicit_viz = any(kw in preprocessed_query.lower() for kw in [
-                    'chart', 'graph', 'visualize', 'plot', 'add to dashboard', 'show chart',
-                    'create chart', 'dashboard', 'visualization'
-                ])
-
-                if explicit_viz:
-                    # Auto-add to dashboard
-                    chart_config = dashboard_manager.add_chart_from_query(
-                        session_id=request.session_id,
-                        query=preprocessed_query,
-                        sql=sql_query,
-                        result={'success': True, 'data': query_results}
-                    )
-                    if chart_config:
-                        chart_config['auto_added'] = True
-                        print(f"📊 Chart auto-added: {chart_config.get('type')} - {chart_config.get('title')}")
-                else:
-                    # Build preview only (not added to dashboard)
-                    chart_config = dashboard_manager.build_chart_preview(
-                        query=preprocessed_query,
-                        sql=sql_query,
-                        result={'success': True, 'data': query_results}
-                    )
-                    if chart_config:
-                        chart_config['auto_added'] = False
-                        print(f"📊 Chart preview built: {chart_config.get('type')} - {chart_config.get('title')}")
+                # Always build a preview — never auto-add. User clicks "Add to Dashboard".
+                chart_config = dashboard_manager.build_chart_preview(
+                    query=request.question,
+                    sql=sql_query,
+                    result={'success': True, 'data': query_results}
+                )
+                if chart_config:
+                    chart_config['auto_added'] = False
+                    print(f"📊 Chart preview built: {chart_config.get('type')} - {chart_config.get('title')}")
             except Exception as e:
                 print(f"⚠️ Could not generate chart: {e}")
 

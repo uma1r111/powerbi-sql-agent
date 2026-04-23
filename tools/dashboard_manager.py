@@ -525,11 +525,23 @@ class DashboardManager:
 
     # ── Parallel initial dashboard generation ────────────────────────────
 
+    def _build_analysis(self, schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Pre-analyse every table in schema for numeric/date/categorical columns."""
+        analysis = {}
+        for tname, info in schema.get('tables', {}).items():
+            cols, types = info['columns'], info['types']
+            analysis[tname] = {
+                'numeric': self._numeric_cols(cols, types),
+                'date':    self._date_cols(cols, types),
+                'cat':     self._cat_cols(cols, types),
+            }
+        return analysis
+
     def generate_initial_dashboard(self, user_email: str, session_id: str) -> Dict[str, Any]:
         """
         Generate default dashboard by auto-detecting schema.
-        SQL queries run in parallel for fast load times.
-        Result persisted to Redis with 7-day TTL.
+        Tries JOIN-based topic queries first for richer insights; falls back to
+        single-table smart queries. Runs in parallel and persists to Redis.
         """
         logger.info(f"Generating initial dashboard for {user_email} (session: {session_id})")
 
@@ -549,8 +561,22 @@ class DashboardManager:
             self._save_dashboard(session_id, dashboard)
             return dashboard
 
-        query_defs = self._generate_smart_queries(schema)
-        logger.info(f"Generated {len(query_defs)} smart queries — executing in parallel")
+        analysis = self._build_analysis(schema)
+        relationships = self._detect_relationships(schema)
+
+        # Try topic queries (JOIN-based, much richer) — stop at first that returns results
+        query_defs = []
+        for topic in ['customer', 'order', 'product', 'employee', 'supplier']:
+            query_defs = self._generate_topic_queries(schema, analysis, topic, relationships)
+            if query_defs:
+                logger.info(f"Initial dashboard using topic '{topic}' — {len(query_defs)} charts")
+                break
+
+        # Fallback to generic single-table smart queries
+        if not query_defs:
+            query_defs = self._generate_smart_queries(schema)
+
+        logger.info(f"Generated {len(query_defs)} queries — executing in parallel")
 
         def run_query(qdef):
             try:
@@ -561,16 +587,13 @@ class DashboardManager:
                         chart_type=qdef['chart_type'],
                         query=qdef['title'],
                     )
-                    # Use smart sizing based on chart type, fall back to query def position
-                    smart_pos = self._get_default_position(qdef['chart_type'], 0, [])
-                    position = qdef.get('position', smart_pos)
-                    # Override w/h with smart sizes but keep x/y from query def
-                    position = {
-                        'x': position.get('x', 0),
-                        'y': position.get('y', 9999),
-                        'w': smart_pos['w'],
-                        'h': smart_pos['h'],
-                    }
+                    # Honour the exact position defined in the query spec (x, y, w, h)
+                    # so topic-query grids render as intended. Fall back to smart default
+                    # only when no position was specified.
+                    position = qdef.get(
+                        'position',
+                        self._get_default_position(qdef['chart_type'], 0, [])
+                    )
                     return {
                         'chart_id':   qdef['id'],
                         'title':      qdef['title'],
@@ -703,15 +726,34 @@ class DashboardManager:
         logger.info(f"Generating targeted dashboard for topic: '{topic}' (session: {session_id})")
 
         schema = self._get_database_schema()
-        tables = schema.get('tables', {})
 
-        # Find relevant tables based on topic
-        relevant_tables = {t: v for t, v in tables.items() if topic.lower() in t.lower()}
-        if not relevant_tables:
-            relevant_tables = dict(list(tables.items())[:3])
+        # Analyse ALL tables so relationship detection can use them for JOINs
+        analysis = self._build_analysis(schema)
+        relationships = self._detect_relationships(schema)
 
-        focused_schema = {'tables': relevant_tables}
-        query_defs = self._generate_smart_queries(focused_schema)
+        # Common business-term → dimension-table aliases (try most JOIN-rich first)
+        _TOPIC_ALIASES: Dict[str, List[str]] = {
+            'sales':       ['customer', 'order', 'orders'],
+            'revenue':     ['customer', 'order', 'orders'],
+            'purchase':    ['customer', 'order', 'orders'],
+            'transaction': ['customer', 'order', 'orders'],
+            'overall':     ['customer', 'order', 'product'],
+        }
+
+        # 1. Try exact topic with JOIN-based queries
+        query_defs = self._generate_topic_queries(schema, analysis, topic, relationships)
+
+        # 2. Try topic aliases
+        if not query_defs:
+            for alias in _TOPIC_ALIASES.get(topic.lower(), []):
+                query_defs = self._generate_topic_queries(schema, analysis, alias, relationships)
+                if query_defs:
+                    logger.info(f"Topic '{topic}' resolved via alias '{alias}'")
+                    break
+
+        # 3. Fallback: smart queries across ALL tables (always produces results)
+        if not query_defs:
+            query_defs = self._generate_smart_queries(schema)
 
         # Get existing dashboard or create new one
         dashboard = self._get_dashboard(session_id)
@@ -744,7 +786,10 @@ class DashboardManager:
                         'data':       result['data'],
                         'config':     cfg.get('config', {}),
                         'sql':        qdef['sql'].strip(),
-                        'position':   self._get_default_position(qdef['chart_type'], 0, []),
+                        'position':   qdef.get(
+                            'position',
+                            self._get_default_position(qdef['chart_type'], 0, [])
+                        ),
                         'created_at': datetime.now().isoformat(),
                     }
             except Exception as e:
