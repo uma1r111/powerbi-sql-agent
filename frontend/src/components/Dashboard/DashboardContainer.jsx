@@ -1,7 +1,7 @@
 // frontend/src/components/Dashboard/DashboardContainer.jsx
 
-import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Loader2, AlertCircle, X, Plus, Wand2, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { RefreshCw, Loader2, AlertCircle, X, Plus, Wand2 } from 'lucide-react';
 import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -22,6 +22,7 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
     const [removedChartIds, setRemovedChartIds] = useState(new Set());
     const [activeFilter, setActiveFilter] = useState(null);
     const [gridWidth, setGridWidth] = useState(800);
+    const [containerHeight, setContainerHeight] = useState(600);
     const [showBuilder, setShowBuilder] = useState(false);
 
     const observerRef = useRef(null);
@@ -33,10 +34,13 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
         observerRef.current?.disconnect();
         observerRef.current = null;
         if (node) {
-            setGridWidth(node.getBoundingClientRect().width || 800);
+            const rect = node.getBoundingClientRect();
+            setGridWidth(rect.width || 800);
+            setContainerHeight(rect.height || 600);
             const ro = new ResizeObserver(entries => {
                 for (const e of entries) {
                     if (e.contentRect.width > 0) setGridWidth(e.contentRect.width);
+                    if (e.contentRect.height > 0) setContainerHeight(e.contentRect.height);
                 }
             });
             ro.observe(node);
@@ -57,7 +61,6 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
         try {
             const token = sessionStorage.getItem('token');
 
-            // Try cached dashboard first
             const cached = await fetch(`${API}/dashboard/current?session_id=${sessionId}`,
                 { headers: { Authorization: `Bearer ${token}` } });
 
@@ -72,7 +75,6 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
                 }
             }
 
-            // Generate fresh dashboard
             const fresh = await fetch(`${API}/dashboard/initial?session_id=${sessionId}`,
                 { headers: { Authorization: `Bearer ${token}` } });
             if (!fresh.ok) throw new Error(`HTTP ${fresh.status}`);
@@ -183,7 +185,53 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
         } catch { }
     };
 
-    // ── Render states ───────────────────────────────────────────────────
+    // ── Layout calculation ──────────────────────────────────────────────────────
+    // Build grid layout with a 2-column arrangement for regular charts
+    const layout = useMemo(() => {
+        if (!dashboard?.charts) return [];
+        let regularCount = 0;
+        return dashboard.charts.map((chart, idx) => {
+            if (chart.position?.x !== undefined && chart.position?.y !== undefined) {
+                return {
+                    i: chart.chart_id,
+                    x: chart.position.x, y: chart.position.y,
+                    w: chart.position.w ?? (chart.type === 'kpi' ? 3 : 6),
+                    h: chart.position.h ?? (chart.type === 'kpi' ? 2 : 4),
+                    minW: chart.type === 'kpi' ? 2 : 3,
+                    minH: chart.type === 'kpi' ? 2 : 3,
+                };
+            }
+            // No saved position — auto-arrange in 2-column grid
+            if (chart.type === 'kpi') {
+                return {
+                    i: chart.chart_id,
+                    x: (idx % 4) * 3, y: 0,
+                    w: 3, h: 2, minW: 2, minH: 2,
+                };
+            }
+            // Regular charts: alternate left (x=0) and right (x=6) columns
+            const col = regularCount % 2;          // 0 = left, 1 = right
+            const row = Math.floor(regularCount / 2);
+            regularCount++;
+            return {
+                i: chart.chart_id,
+                x: col * 6, y: row * 4,
+                w: 6, h: 4, minW: 3, minH: 3,
+            };
+        });
+    }, [dashboard?.charts]);
+
+    // rowHeight targets MIN_VISIBLE_ROWS so each chart stays readable.
+    // When there are more charts the grid scrolls rather than squishing everything.
+    const rowHeight = useMemo(() => {
+        if (!containerHeight) return 62;
+        const MIN_VISIBLE_ROWS = 8;
+        const margins = MIN_VISIBLE_ROWS * 10;
+        const available = Math.max(0, containerHeight - 16 - margins);
+        return Math.max(52, Math.floor(available / MIN_VISIBLE_ROWS));
+    }, [containerHeight]);
+
+    // ── Render states ───────────────────────────────────────────────────────────
 
     if (loading) {
         return (
@@ -247,54 +295,38 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
                         </button>
                     </div>
                 </div>
+
+                {/* Chart Builder Panel */}
+                {showBuilder && (
+                    <div className="fixed inset-y-0 right-0 w-80 flex flex-col shadow-2xl z-50"
+                        style={{ background: t.surface, borderLeft: `1px solid ${t.border}` }}>
+                        <ManualChartBuilder
+                            sessionId={sessionId}
+                            onAddChart={(payload) => onChartBuilderAdded?.(payload)}
+                            onClose={() => setShowBuilder(false)}
+                            theme={t}
+                        />
+                    </div>
+                )}
             </div>
         );
     }
-
-    const layout = dashboard.charts.map((chart, idx) => {
-        if (chart.position?.x !== undefined && chart.position?.y !== undefined) {
-            return {
-                i: chart.chart_id,
-                x: chart.position.x, y: chart.position.y,
-                w: chart.position.w ?? (chart.type === 'kpi' ? 3 : 6),
-                h: chart.position.h ?? (chart.type === 'kpi' ? 2 : 5),
-                minW: chart.type === 'kpi' ? 2 : 3,
-                minH: chart.type === 'kpi' ? 2 : 4,
-            };
-        }
-        return {
-            i: chart.chart_id,
-            x: chart.type === 'kpi' ? (idx % 4) * 3 : 0,
-            y: 9999,
-            w: chart.position?.w ?? (chart.type === 'kpi' ? 3 : 6),
-            h: chart.position?.h ?? (chart.type === 'kpi' ? 2 : 5),
-            minW: chart.type === 'kpi' ? 2 : 3,
-            minH: chart.type === 'kpi' ? 2 : 4,
-        };
-    });
-
-    const activeFilterSource = activeFilter
-        ? dashboard.charts.find(c => c.chart_id === activeFilter.sourceChartId)
-        : null;
 
     return (
         <div className="h-full flex" style={{ background: t.bg }}>
             {/* Main Dashboard Area */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                {/* Dashboard toolbar */}
-                <div className="flex items-center justify-between px-5 py-3 border-b shrink-0"
+                {/* Toolbar */}
+                <div className="flex items-center justify-between px-5 py-2.5 border-b shrink-0"
                     style={{ background: t.header, borderColor: t.border }}>
-                    <div className="flex items-center gap-4">
-                        <div>
-                            <h2 className="text-base font-bold" style={{ color: t.text }}>Dashboard</h2>
-                            <p className="text-xs" style={{ color: t.textMuted }}>
-                                {dashboard.charts.length} chart{dashboard.charts.length !== 1 ? 's' : ''} · Drag to rearrange
-                            </p>
-                        </div>
+                    <div>
+                        <h2 className="text-sm font-bold" style={{ color: t.text }}>Dashboard</h2>
+                        <p className="text-xs" style={{ color: t.textMuted }}>
+                            {dashboard.charts.length} chart{dashboard.charts.length !== 1 ? 's' : ''} · Drag to rearrange
+                        </p>
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {/* Active filter badge */}
                         {activeFilter && (
                             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
                                 style={{ background: `${t.accent}15`, color: t.accent, border: `1px solid ${t.accent}30` }}>
@@ -342,19 +374,19 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
                     />
                 )}
 
-                {/* Grid */}
-                <div ref={gridContainerRef} className="flex-1 overflow-auto p-4">
+                {/* Grid — fills remaining height, scrolls when charts overflow */}
+                <div ref={gridContainerRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px' }}>
                     <GridLayout
                         className="layout"
                         layout={layout}
                         cols={12}
-                        rowHeight={50}
+                        rowHeight={rowHeight}
                         width={gridWidth}
                         isDraggable
                         isResizable
                         compactType="vertical"
                         preventCollision={false}
-                        margin={[12, 12]}
+                        margin={[10, 10]}
                         onLayoutChange={handleLayoutChange}
                     >
                         {dashboard.charts.map((chart) => (

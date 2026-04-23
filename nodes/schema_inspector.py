@@ -172,20 +172,85 @@ class SchemaInspectorNode:
             
             # Not a follow-up - use enhanced table suggestion
             query_lower = state.user_query.lower()
-            
+
             # Get list of valid tables from dynamic context
             valid_tables = list(self.dynamic_context.keys())
-            
+
             # 1. EXACT KEYWORD MATCHING
-            # We replace the hardcoded table_keywords map with a dynamic check
             table_scores = {}
             for table in valid_tables:
                 if table.lower() in query_lower:
                     table_scores[table] = 5.0  # High score for direct mention
-            
-            # 2. FUZZY MATCHING if no exact matches
+
+            # 2. SEMANTIC KEYWORD MAPPING
+            # Maps business concepts to the tables that answer them.
+            # This ensures queries about "revenue", "sales", "monthly" etc.
+            # correctly pull in order_details + orders + products.
+            semantic_map = {
+                "revenue":       ["orders", "order_details"],
+                "sales":         ["orders", "order_details", "products"],
+                "profit":        ["orders", "order_details"],
+                "income":        ["orders", "order_details"],
+                "earn":          ["orders", "order_details"],
+                "monthly":       ["orders"],
+                "yearly":        ["orders"],
+                "quarterly":     ["orders"],
+                "annual":        ["orders"],
+                "trend":         ["orders"],
+                "growth":        ["orders", "products"],
+                "total":         ["orders", "order_details"],
+                "sum":           ["orders", "order_details"],
+                "amount":        ["orders", "order_details"],
+                "discount":      ["order_details"],
+                "quantity":      ["order_details"],
+                "freight":       ["orders"],
+                "shipping":      ["orders", "shippers"],
+                "price":         ["products", "order_details"],
+                "cost":          ["products", "order_details"],
+                "stock":         ["products"],
+                "inventory":     ["products"],
+                "category":      ["categories", "products"],
+                "brand":         ["products", "suppliers"],
+                "supplier":      ["suppliers", "products"],
+                "vendor":        ["suppliers"],
+                "purchase":      ["orders", "order_details"],
+                "buy":           ["orders", "order_details", "customers"],
+                "sell":          ["orders", "order_details", "products"],
+                "customer":      ["customers", "orders"],
+                "client":        ["customers"],
+                "buyer":         ["customers"],
+                "employee":      ["employees", "orders"],
+                "staff":         ["employees"],
+                "performance":   ["employees", "orders"],
+                "shipper":       ["shippers", "orders"],
+                "territory":     ["territories", "employees"],
+                "region":        ["regions", "territories"],
+                "country":       ["customers", "suppliers"],
+                "top":           ["orders", "order_details", "customers", "products"],
+                "best":          ["orders", "order_details", "products"],
+                "worst":         ["orders", "order_details", "products"],
+                "compare":       ["orders", "order_details"],
+                "analyse":       ["orders", "order_details"],
+                "analyze":       ["orders", "order_details"],
+                "insight":       ["orders", "order_details", "customers", "products"],
+                "overview":      ["orders", "order_details", "customers", "products"],
+                "dashboard":     ["orders", "order_details", "customers", "products"],
+                "report":        ["orders", "order_details"],
+                "kpi":           ["orders", "order_details"],
+                "metric":        ["orders", "order_details"],
+            }
+
+            for keyword, related_tables in semantic_map.items():
+                if keyword in query_lower:
+                    for tbl_fragment in related_tables:
+                        # Match fragment to actual table names in the schema
+                        for valid in valid_tables:
+                            if tbl_fragment.lower() in valid.lower() or valid.lower() in tbl_fragment.lower():
+                                table_scores[valid] = table_scores.get(valid, 0) + 2.0
+
+            # 3. FUZZY MATCHING if still no matches
             if not table_scores:
-                logger.info("🔄 No exact keyword matches, trying fuzzy matching...")
+                logger.info("🔄 No keyword/semantic matches, trying fuzzy matching...")
                 table_scores = self._fuzzy_match_tables(query_lower, valid_tables)
             
             # 3. STILL NO MATCHES? Handle error
