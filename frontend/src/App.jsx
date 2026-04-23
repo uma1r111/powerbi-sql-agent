@@ -28,12 +28,16 @@ const DEFAULT_CONVERSATION = {
 
 // ─── Login Page ───────────────────────────────────────────────────────────────
 const LoginPage = ({ onLogin }) => {
+  const [tab, setTab] = useState('signin'); // 'signin' | 'register'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  const handleSubmit = async (e) => {
+  const handleSignIn = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -43,71 +47,269 @@ const LoginPage = ({ onLogin }) => {
       sessionStorage.setItem('user', JSON.stringify(res.data.user));
       onLogin(res.data.user);
     } catch {
-      setError('Invalid credentials. Please try again.');
+      setError('Invalid credentials. Please check your email and password.');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)' }}>
-      {/* Background orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute w-96 h-96 rounded-full blur-3xl opacity-20 -top-20 -left-20"
-          style={{ background: 'radial-gradient(circle, #6366f1, transparent)' }} />
-        <div className="absolute w-96 h-96 rounded-full blur-3xl opacity-20 -bottom-20 -right-20"
-          style={{ background: 'radial-gradient(circle, #3b82f6, transparent)' }} />
-      </div>
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (password.length < 4) {
+      setError('Password must be at least 4 characters.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      await axios.post(`${API_URL}/register`, { email, password, full_name: fullName });
+      setTab('signin');
+      setSuccessMsg('Account created successfully! Sign in with your credentials.');
+      setPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      <div className="relative w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-2xl"
-            style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' }}>
-            <Sparkles className="w-8 h-8 text-white" />
+  const FEATURES = [
+    { icon: BarChart2, text: 'AI-powered SQL generation from natural language' },
+    { icon: TrendingUp, text: 'Interactive dashboards with 12+ chart types' },
+    { icon: Database, text: 'Real-time data analysis across all your tables' },
+  ];
+
+  return (
+    <div className="min-h-screen flex" style={{ background: '#f8fafc' }}>
+      {/* Left panel */}
+      <div className="hidden lg:flex lg:w-[480px] flex-col justify-between p-12 shrink-0"
+        style={{ background: '#0f172a' }}>
+        <div>
+          <div className="flex items-center gap-3 mb-16">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' }}>
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-white text-xl font-bold tracking-tight">IntelliQuery</span>
           </div>
-          <h1 className="text-4xl font-bold text-white tracking-tight">IntelliQuery</h1>
-          <p className="text-slate-400 mt-2 text-sm">AI-Powered Business Intelligence Platform</p>
+          <h2 className="text-4xl font-bold text-white leading-tight mb-4">
+            Enterprise Business Intelligence
+          </h2>
+          <p className="text-slate-400 text-base leading-relaxed mb-12">
+            Transform your data into actionable insights with AI-powered analytics and interactive visualizations.
+          </p>
+          <div className="space-y-5">
+            {FEATURES.map(({ icon: Icon, text }, i) => (
+              <div key={i} className="flex items-start gap-4">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                  style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.25)' }}>
+                  <Icon className="w-4 h-4" style={{ color: '#a5b4fc' }} />
+                </div>
+                <p className="text-slate-300 text-sm leading-relaxed">{text}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="rounded-2xl p-8 shadow-2xl"
-          style={{ background: 'rgba(30,41,59,0.8)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Email address</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 transition-all"
-                placeholder="you@intelliquery.com"
-                style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.1)', focusRingColor: '#6366f1' }} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-                className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 transition-all"
-                placeholder="••••••••"
-                style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.1)' }} />
-            </div>
-            {error && (
-              <div className="text-sm text-red-300 px-4 py-3 rounded-xl"
-                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)' }}>
-                {error}
+        {/* Dashboard illustration */}
+        <div className="mt-8 rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          {/* KPI row */}
+          <div className="flex gap-2 mb-3">
+            {[['$2.4M', '+12%', 'Revenue'], ['1,847', '+8%', 'Orders'], ['94%', '+3%', 'Retention']].map(([val, chg, label]) => (
+              <div key={label} className="flex-1 rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <p className="text-xs mb-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</p>
+                <p className="text-sm font-bold text-white leading-tight">{val}</p>
+                <p className="text-xs font-semibold" style={{ color: '#34d399' }}>{chg}</p>
               </div>
-            )}
-            <button type="submit" disabled={loading}
-              className="w-full py-3 rounded-xl font-bold text-white text-sm transition-all disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' }}>
-              {loading ? 'Signing in…' : 'Sign In →'}
-            </button>
-          </form>
+            ))}
+          </div>
+          {/* Bar chart mock */}
+          <div className="rounded-xl p-2.5 mb-2" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            <p className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Monthly Revenue</p>
+            <div className="flex items-end gap-0.5 h-10">
+              {[55, 72, 48, 88, 65, 80, 58, 92, 70, 85, 76, 100].map((h, i) => (
+                <div key={i} className="flex-1 rounded-t" style={{
+                  height: `${h}%`,
+                  background: `rgba(99,102,241,${0.35 + h / 300})`,
+                }} />
+              ))}
+            </div>
+          </div>
+          {/* Line chart mock */}
+          <div className="rounded-xl p-2.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            <p className="text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>Customer Growth</p>
+            <svg width="100%" height="36" viewBox="0 0 220 36" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <polygon points="0,28 22,24 44,26 66,16 88,18 110,10 132,12 154,7 176,5 198,4 220,2 220,36 0,36"
+                fill="url(#lineGrad)" />
+              <polyline points="0,28 22,24 44,26 66,16 88,18 110,10 132,12 154,7 176,5 198,4 220,2"
+                fill="none" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
 
-          <div className="mt-6 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-            <p className="text-xs text-slate-500 text-center mb-3">Quick Demo Access</p>
+        <p className="text-slate-600 text-xs mt-6">
+          &copy; {new Date().getFullYear()} IntelliQuery. All rights reserved.
+        </p>
+      </div>
+
+      {/* Right panel */}
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="w-full max-w-md">
+          {/* Mobile logo */}
+          <div className="flex lg:hidden items-center gap-3 mb-10 justify-center">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' }}>
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-slate-900 text-xl font-bold tracking-tight">IntelliQuery</span>
+          </div>
+
+          <h1 className="text-2xl font-bold mb-1" style={{ color: '#0f172a' }}>
+            {tab === 'signin' ? 'Welcome back' : 'Create account'}
+          </h1>
+          <p className="text-sm mb-7" style={{ color: '#64748b' }}>
+            {tab === 'signin'
+              ? 'Sign in to your IntelliQuery account'
+              : 'Get started with IntelliQuery today'}
+          </p>
+
+          {/* Tab switcher */}
+          <div className="flex rounded-xl mb-7 p-1"
+            style={{ background: '#f1f5f9', border: '1px solid #e2e8f0' }}>
+            {[{ id: 'signin', label: 'Sign In' }, { id: 'register', label: 'Register' }].map(({ id, label }) => (
+              <button key={id} onClick={() => { setTab(id); setError(''); setSuccessMsg(''); }}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+                style={{
+                  background: tab === id ? '#fff' : 'transparent',
+                  color: tab === id ? '#0f172a' : '#64748b',
+                  boxShadow: tab === id ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sign In form */}
+          {tab === 'signin' && (
+            <form onSubmit={handleSignIn} className="space-y-4">
+              {successMsg && (
+                <div className="text-sm px-4 py-3 rounded-xl"
+                  style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#16a34a' }}>
+                  {successMsg}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: '#374151' }}>
+                  Email address
+                </label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                  className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all"
+                  placeholder="you@example.com"
+                  style={{
+                    background: '#fff', border: '1px solid #d1d5db', color: '#0f172a',
+                    focusRingColor: '#6366f1',
+                  }} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: '#374151' }}>
+                  Password
+                </label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
+                  className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 transition-all"
+                  placeholder="Enter your password"
+                  style={{ background: '#fff', border: '1px solid #d1d5db', color: '#0f172a' }} />
+              </div>
+              {error && (
+                <div className="text-sm px-4 py-3 rounded-xl"
+                  style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626' }}>
+                  {error}
+                </div>
+              )}
+              <button type="submit" disabled={loading}
+                className="w-full py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-50 mt-2"
+                style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', color: '#fff' }}>
+                {loading ? 'Signing in...' : 'Sign In'}
+              </button>
+            </form>
+          )}
+
+          {/* Register form */}
+          {tab === 'register' && (
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: '#374151' }}>
+                  Full name
+                </label>
+                <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} required
+                  className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-all"
+                  placeholder="Your full name"
+                  style={{ background: '#fff', border: '1px solid #d1d5db', color: '#0f172a' }} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: '#374151' }}>
+                  Email address
+                </label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                  className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-all"
+                  placeholder="you@example.com"
+                  style={{ background: '#fff', border: '1px solid #d1d5db', color: '#0f172a' }} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: '#374151' }}>
+                  Password
+                </label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
+                  className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-all"
+                  placeholder="Choose a password"
+                  style={{ background: '#fff', border: '1px solid #d1d5db', color: '#0f172a' }} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: '#374151' }}>
+                  Confirm password
+                </label>
+                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required
+                  className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-all"
+                  placeholder="Confirm your password"
+                  style={{ background: '#fff', border: '1px solid #d1d5db', color: '#0f172a' }} />
+              </div>
+              {error && (
+                <div className="text-sm px-4 py-3 rounded-xl"
+                  style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626' }}>
+                  {error}
+                </div>
+              )}
+              <button type="submit" disabled={loading}
+                className="w-full py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-50 mt-2"
+                style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', color: '#fff' }}>
+                {loading ? 'Creating account...' : 'Create Account'}
+              </button>
+            </form>
+          )}
+
+          {/* Demo accounts */}
+          <div className="mt-7 pt-6" style={{ borderTop: '1px solid #e2e8f0' }}>
+            <p className="text-xs text-center mb-3" style={{ color: '#94a3b8' }}>Demo accounts</p>
             <div className="flex justify-center gap-2">
               {['sameed', 'izma', 'umair'].map(name => (
                 <button key={name}
-                  onClick={() => { setEmail(`${name}@intelliquery.com`); setPassword('1234'); }}
+                  onClick={() => {
+                    setTab('signin');
+                    setEmail(`${name}@intelliquery.com`);
+                    setPassword('1234');
+                  }}
                   className="text-xs px-3 py-1.5 rounded-lg capitalize transition-all hover:opacity-80"
-                  style={{ background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.2)' }}>
+                  style={{ background: 'rgba(99,102,241,0.08)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)' }}>
                   {name}
                 </button>
               ))}
@@ -133,6 +335,19 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
       messageRefs.current[scrollToIndex].scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [scrollToIndex]);
 
+  const addChartToDashboard = async (chart) => {
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.post(`${API_URL}/dashboard/add-manual-chart`,
+        { session_id: sessionId, chart },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setTimeout(() => window.dispatchEvent(new CustomEvent('refreshDashboard')), 300);
+    } catch (err) {
+      console.error('Failed to add chart to dashboard:', err);
+    }
+  };
+
   const sendQuery = async () => {
     if (!input.trim() || loading) return;
     const q = input;
@@ -152,13 +367,15 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
         results: res.data.results || [],
         execution_time: res.data.execution_time,
         chart: res.data.chart,
+        sessionId,
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, ai]);
       if (res.data.chart && onChartCreated)
         onChartCreated({ ...res.data.chart, query: q, created_at: new Date().toISOString() });
-      if (res.data.chart)
+      if (res.data.chart?.auto_added || res.data.full_dashboard_generated) {
         setTimeout(() => window.dispatchEvent(new CustomEvent('refreshDashboard')), 500);
+      }
     } catch (err) {
       const detail = err.response?.data?.detail;
       setMessages(prev => [...prev, {
@@ -246,9 +463,19 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
                   </table>
                 </div>
               )}
-              {msg.chart && (
+              {msg.chart && !msg.chart.auto_added && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs" style={{ color: t.textMuted }}>Chart ready</span>
+                  <button onClick={() => addChartToDashboard(msg.chart)}
+                    className="text-xs px-2 py-1 rounded-lg font-semibold transition-all"
+                    style={{ background: t.accent, color: '#fff' }}>
+                    Add to Dashboard
+                  </button>
+                </div>
+              )}
+              {msg.chart && msg.chart.auto_added && (
                 <p className="text-xs mt-2 flex items-center gap-1" style={{ color: msg.type === 'user' ? 'rgba(255,255,255,0.8)' : t.accent }}>
-                  <BarChart2 className="w-3 h-3" /> Visualization added to dashboard
+                  <BarChart2 className="w-3 h-3" /> Added to dashboard
                 </p>
               )}
               {msg.execution_time > 0 && (
@@ -494,6 +721,12 @@ const Dashboard = ({ user, onLogout }) => {
   const [editTitle, setEditTitle] = useState('');
   const [sessionLoading, setSessionLoading] = useState(true);
 
+  // Dashboard pages (Power BI-style) — per conversation
+  const [convPages, setConvPages] = useState({ 1: [{ id: 1, name: 'Page 1' }] });
+  const [convActivePage, setConvActivePage] = useState({ 1: 1 });
+  const [renamingPageId, setRenamingPageId] = useState(null);
+  const [renamePageText, setRenamePageText] = useState('');
+
   const saveTimerRef = useRef(null);
 
   const saveSession = useCallback((convs, activeId) => {
@@ -586,6 +819,8 @@ const Dashboard = ({ user, onLogout }) => {
     setConversations(prev => [...prev, conv]);
     setActiveConvId(id);
     setActiveNav('dashboard');
+    setConvPages(prev => ({ ...prev, [id]: [{ id: 1, name: 'Page 1' }] }));
+    setConvActivePage(prev => ({ ...prev, [id]: 1 }));
   };
 
   const deleteConversation = (id) => {
@@ -603,12 +838,44 @@ const Dashboard = ({ user, onLogout }) => {
 
   const handleHistoryClick = (idx) => { setActiveNav('dashboard'); setScrollToIndex(idx); };
 
+  // Page management
+  const addPage = (convId) => {
+    const pages = convPages[convId] || [{ id: 1, name: 'Page 1' }];
+    const newId = Math.max(...pages.map(p => p.id)) + 1;
+    setConvPages(prev => ({ ...prev, [convId]: [...pages, { id: newId, name: `Page ${newId}` }] }));
+    setConvActivePage(prev => ({ ...prev, [convId]: newId }));
+  };
+  const deletePage = (convId, pageId) => {
+    const pages = convPages[convId] || [{ id: 1, name: 'Page 1' }];
+    if (pages.length <= 1) return;
+    const remaining = pages.filter(p => p.id !== pageId);
+    setConvPages(prev => ({ ...prev, [convId]: remaining }));
+    if ((convActivePage[convId] || 1) === pageId)
+      setConvActivePage(prev => ({ ...prev, [convId]: remaining[0].id }));
+  };
+  const switchPage = (convId, pageId) => setConvActivePage(prev => ({ ...prev, [convId]: pageId }));
+  const startRenamePage = (pageId, name) => { setRenamingPageId(pageId); setRenamePageText(name); };
+  const savePageRename = (convId, pageId) => {
+    if (renamePageText.trim()) {
+      setConvPages(prev => ({
+        ...prev,
+        [convId]: (prev[convId] || []).map(p => p.id === pageId ? { ...p, name: renamePageText.trim() } : p),
+      }));
+    }
+    setRenamingPageId(null);
+  };
+
   useEffect(() => {
     if (scrollToIndex !== null) {
       const t = setTimeout(() => setScrollToIndex(null), 500);
       return () => clearTimeout(t);
     }
   }, [scrollToIndex]);
+
+  // Derived page values for active conversation
+  const activePages = convPages[activeConvId] || [{ id: 1, name: 'Page 1' }];
+  const activeDashPage = convActivePage[activeConvId] || 1;
+  const dashSessionId = `session-${activeConvId}-p${activeDashPage}`;
 
   if (sessionLoading) {
     return (
@@ -635,7 +902,7 @@ const Dashboard = ({ user, onLogout }) => {
     <div className="flex h-screen overflow-hidden" style={{ background: t.bg, fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
       {/* ── Sidebar ── */}
       {sidebarOpen && (
-        <div className="w-60 flex flex-col shrink-0"
+        <div className="w-52 flex flex-col shrink-0"
           style={{ background: t.sidebar, borderRight: `1px solid ${t.sidebarBorder}` }}>
           {/* Logo */}
           <div className="px-5 py-4 shrink-0" style={{ borderBottom: `1px solid ${t.sidebarBorder}` }}>
@@ -797,7 +1064,7 @@ const Dashboard = ({ user, onLogout }) => {
                     method: 'POST',
                     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      session_id: `session-${activeConvId}`,
+                      session_id: dashSessionId,
                       query: chart.query || chart.title || '',
                       sql: '',
                       result: { success: true, data: chart.data || [] }
@@ -813,21 +1080,84 @@ const Dashboard = ({ user, onLogout }) => {
           )}
 
           {/* Dashboard — always mounted, hidden when not active */}
-          <div className={`flex-1 overflow-hidden${activeNav === 'dashboard' ? '' : ' hidden'}`}>
-            <DashboardContainer
-              sessionId={`session-${activeConvId}`}
-              onChartsLoaded={handleChartsLoaded}
-              onChartBuilderAdded={handleChartBuilderAdded}
-            />
+          <div className={`flex-1 overflow-hidden flex flex-col${activeNav === 'dashboard' ? '' : ' hidden'}`}>
+            <div className="flex-1 overflow-hidden">
+              <DashboardContainer
+                sessionId={dashSessionId}
+                onChartsLoaded={handleChartsLoaded}
+                onChartBuilderAdded={handleChartBuilderAdded}
+              />
+            </div>
+
+            {/* Power BI-style page tabs */}
+            <div className="shrink-0 flex items-center gap-0 border-t overflow-x-auto"
+              style={{ background: t.header, borderColor: t.border, minHeight: '36px', paddingLeft: '12px' }}>
+              {activePages.map(page => {
+                const isActive = page.id === activeDashPage;
+                const isRenaming = renamingPageId === page.id;
+                return (
+                  <div key={page.id} className="relative flex items-center shrink-0 group/pg mr-0.5">
+                    <div
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-t-lg text-xs cursor-pointer select-none transition-all"
+                      style={{
+                        background: isActive ? t.bg : 'transparent',
+                        color: isActive ? t.text : t.textMuted,
+                        fontWeight: isActive ? '600' : '400',
+                        border: isActive ? `1px solid ${t.border}` : '1px solid transparent',
+                        borderBottom: isActive ? `1px solid ${t.bg}` : '1px solid transparent',
+                        marginBottom: isActive ? '-1px' : '0',
+                      }}
+                      onClick={() => !isRenaming && switchPage(activeConvId, page.id)}
+                      onDoubleClick={() => startRenamePage(page.id, page.name)}>
+                      {isRenaming ? (
+                        <input
+                          autoFocus
+                          value={renamePageText}
+                          onChange={e => setRenamePageText(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') savePageRename(activeConvId, page.id);
+                            if (e.key === 'Escape') setRenamingPageId(null);
+                          }}
+                          onBlur={() => savePageRename(activeConvId, page.id)}
+                          onClick={e => e.stopPropagation()}
+                          className="w-16 text-xs bg-transparent focus:outline-none"
+                          style={{ color: t.text }}
+                        />
+                      ) : (
+                        <span>{page.name}</span>
+                      )}
+                      {activePages.length > 1 && !isRenaming && (
+                        <button
+                          onClick={e => { e.stopPropagation(); deletePage(activeConvId, page.id); }}
+                          className="opacity-0 group-hover/pg:opacity-100 transition-opacity"
+                          style={{ color: t.textMuted }}>
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <button
+                onClick={() => addPage(activeConvId)}
+                className="flex items-center justify-center w-5 h-5 rounded ml-1 transition-all hover:opacity-70 shrink-0"
+                title="Add page"
+                style={{ color: t.textMuted, background: t.accentLight }}>
+                <Plus className="w-3 h-3" />
+              </button>
+              <span className="ml-3 text-xs shrink-0" style={{ color: t.textMuted, opacity: 0.5 }}>
+                Double-click to rename
+              </span>
+            </div>
           </div>
 
           {/* Chat panel */}
-          <div className="w-96 shrink-0 p-4 overflow-hidden" style={{ borderLeft: `1px solid ${t.border}` }}>
+          <div className="w-72 shrink-0 p-4 overflow-hidden" style={{ borderLeft: `1px solid ${t.border}` }}>
             <ChatPanel
               messages={activeConv?.messages || []}
               setMessages={setMessages}
               scrollToIndex={scrollToIndex}
-              sessionId={`session-${activeConvId}`}
+              sessionId={dashSessionId}
               onChartCreated={handleChartCreated}
             />
           </div>

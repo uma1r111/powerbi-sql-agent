@@ -153,6 +153,215 @@ class DashboardManager:
                         best_score, best = score, (col, n, d)
         return best
 
+    # ── Relationship detection ────────────────────────────────────────────
+
+    def _detect_relationships(self, schema: Dict[str, Any]) -> Dict[str, List[Dict[str, str]]]:
+        """Detect FK-style joins by matching {table}_id column naming convention."""
+        tables = schema.get('tables', {})
+        rels: Dict[str, List[Dict]] = {}
+        for tname, info in tables.items():
+            for col in info['columns']:
+                if not col.endswith('_id'):
+                    continue
+                ref = col[:-3]  # 'customer_id' → 'customer'
+                for cand in [ref, ref + 's', ref + 'es']:
+                    if cand in tables and cand != tname:
+                        their_cols = tables[cand]['columns']
+                        pk = next((c for c in [col, f'{ref}_id', 'id'] if c in their_cols), None)
+                        if pk:
+                            rels.setdefault(tname, []).append({
+                                'join_table': cand,
+                                'my_col': col,
+                                'their_col': pk,
+                            })
+                            break
+        return rels
+
+    def _generate_topic_queries(
+        self,
+        schema: Dict[str, Any],
+        analysis: Dict[str, Any],
+        topic: str,
+        relationships: Dict[str, List[Dict]],
+    ) -> List[Dict[str, Any]]:
+        """
+        Build analytically rich queries for a topic using FK-detected JOINs.
+        Handles up to 3-table joins (dim → fact → detail).
+        Falls back to empty list so caller can use _generate_smart_queries.
+        """
+        tables = schema.get('tables', {})
+        queries: List[Dict] = []
+
+        # 1. Find dimension tables related to the topic
+        topic_dims = [t for t in tables if topic.lower() in t.lower()]
+        if not topic_dims:
+            return []
+
+        # 2. Find fact tables that FK directly to a topic dimension
+        linked_facts = []
+        for tname, rels in relationships.items():
+            for rel in rels:
+                if rel['join_table'] in topic_dims:
+                    fa = analysis.get(tname, {})
+                    score = (bool(fa.get('date')) * 2
+                             + bool(fa.get('numeric')) * 1
+                             + len(fa.get('numeric', [])))
+                    linked_facts.append((tname, rel, rel['join_table'], score))
+        if not linked_facts:
+            return []
+
+        linked_facts.sort(key=lambda x: x[3], reverse=True)
+        fact_table, fact_rel, dim_table, _ = linked_facts[0]
+        my_col, their_col = fact_rel['my_col'], fact_rel['their_col']
+        fa  = analysis[fact_table]
+        dim_a = analysis.get(dim_table, {})
+
+        # 3. Look for a "detail" table (numeric, no date) that FKs to fact_table
+        detail_table = detail_mc = detail_tc = detail_metric = None
+        for dt, rels in relationships.items():
+            if dt in (fact_table, dim_table) or dt in topic_dims:
+                continue
+            for rel in rels:
+                if rel['join_table'] == fact_table:
+                    dt_a = analysis.get(dt, {})
+                    if dt_a.get('numeric'):
+                        detail_table = dt
+                        detail_mc    = rel['my_col']
+                        detail_tc    = rel['their_col']
+                        detail_metric = dt_a['numeric'][0]
+                        break
+            if detail_table:
+                break
+
+        # 4. Decide primary metric and JOIN clause
+        if detail_table and detail_metric:
+            metric_expr  = f"det.{detail_metric}"
+            metric_label = detail_metric.replace('_', ' ').title()
+            joins = (
+                f"{fact_table} f "
+                f"JOIN {dim_table} d ON f.{my_col} = d.{their_col} "
+                f"JOIN {detail_table} det ON det.{detail_mc} = f.{detail_tc}"
+            )
+        elif fa.get('numeric'):
+            metric_expr  = f"f.{fa['numeric'][0]}"
+            metric_label = fa['numeric'][0].replace('_', ' ').title()
+            joins = f"{fact_table} f JOIN {dim_table} d ON f.{my_col} = d.{their_col}"
+        else:
+            return []
+
+        # 5. Best categorical column in dimension table
+        dim_cats = dim_a.get('cat', [])
+        dc_info  = self._best_cat_col(dim_table, dim_cats, min_d=3, max_d=60)
+        dim_cat  = dc_info[0] if dc_info and dc_info[0] else (dim_cats[0] if dim_cats else None)
+        if not dim_cat:
+            return []
+
+        # KPI row ─────────────────────────────────────────────────────────
+        queries += [
+            {
+                'id': 'kpi_total_metric',
+                'title': f'Total {metric_label}',
+                'sql': f"SELECT SUM({metric_expr})::numeric(18,2) AS total FROM {joins}",
+                'chart_type': 'kpi',
+                'position': {'x': 0, 'y': 0, 'w': 3, 'h': 2},
+            },
+            {
+                'id': f'kpi_count_{fact_table}',
+                'title': f'Total {fact_table.replace("_"," ").title()}',
+                'sql': f"SELECT COUNT(*) AS total FROM {fact_table}",
+                'chart_type': 'kpi',
+                'position': {'x': 3, 'y': 0, 'w': 3, 'h': 2},
+            },
+            {
+                'id': f'kpi_count_{dim_table}',
+                'title': f'Total {dim_table.replace("_"," ").title()}',
+                'sql': f"SELECT COUNT(*) AS total FROM {dim_table}",
+                'chart_type': 'kpi',
+                'position': {'x': 6, 'y': 0, 'w': 3, 'h': 2},
+            },
+        ]
+
+        # Top 10 bar ──────────────────────────────────────────────────────
+        queries.append({
+            'id': f'bar_top_{dim_table}',
+            'title': f'Top 10 {dim_cat.replace("_"," ").title()} by {metric_label}',
+            'sql': f"""
+                SELECT d.{dim_cat}, SUM({metric_expr})::numeric(18,2) AS total
+                FROM {joins}
+                GROUP BY d.{dim_cat}
+                ORDER BY total DESC LIMIT 10
+            """,
+            'chart_type': 'bar',
+            'position': {'x': 0, 'y': 2, 'w': 6, 'h': 4},
+        })
+
+        # Donut distribution ──────────────────────────────────────────────
+        queries.append({
+            'id': f'donut_{dim_table}',
+            'title': f'{metric_label} by {dim_cat.replace("_"," ").title()}',
+            'sql': f"""
+                SELECT d.{dim_cat}, SUM({metric_expr})::numeric(18,2) AS value
+                FROM {joins}
+                GROUP BY d.{dim_cat}
+                ORDER BY value DESC LIMIT 8
+            """,
+            'chart_type': 'donut',
+            'position': {'x': 6, 'y': 2, 'w': 6, 'h': 4},
+        })
+
+        # Time series area chart ──────────────────────────────────────────
+        if fa.get('date'):
+            date_col = fa['date'][0]
+            queries.append({
+                'id': 'area_trend',
+                'title': f'{metric_label} Trend Over Time',
+                'sql': f"""
+                    SELECT DATE_TRUNC('month', f.{date_col})::date AS period,
+                           SUM({metric_expr})::numeric(18,2) AS total
+                    FROM {joins}
+                    GROUP BY period ORDER BY period LIMIT 36
+                """,
+                'chart_type': 'area',
+                'position': {'x': 0, 'y': 6, 'w': 8, 'h': 4},
+            })
+
+        # Secondary fact-table categorical breakdown ───────────────────────
+        fact_cats = fa.get('cat', [])
+        if fact_cats:
+            fc_info  = self._best_cat_col(fact_table, fact_cats, min_d=2, max_d=30)
+            fact_cat = fc_info[0] if fc_info and fc_info[0] else None
+            if fact_cat:
+                queries.append({
+                    'id': f'bar_{fact_cat}',
+                    'title': f'{metric_label} by {fact_cat.replace("_"," ").title()}',
+                    'sql': f"""
+                        SELECT f.{fact_cat}, SUM({metric_expr})::numeric(18,2) AS total
+                        FROM {joins}
+                        GROUP BY f.{fact_cat}
+                        ORDER BY total DESC LIMIT 10
+                    """,
+                    'chart_type': 'bar',
+                    'position': {'x': 8, 'y': 6, 'w': 4, 'h': 4},
+                })
+
+        # Summary table ───────────────────────────────────────────────────
+        queries.append({
+            'id': f'table_{dim_table}_summary',
+            'title': f'{dim_table.replace("_"," ").title()} Performance Summary',
+            'sql': f"""
+                SELECT d.{dim_cat},
+                       COUNT(*) AS record_count,
+                       SUM({metric_expr})::numeric(18,2) AS total
+                FROM {joins}
+                GROUP BY d.{dim_cat}
+                ORDER BY total DESC LIMIT 20
+            """,
+            'chart_type': 'table',
+            'position': {'x': 0, 'y': 10, 'w': 12, 'h': 4},
+        })
+
+        return queries[:9]
+
     # ── Insightful query generation ───────────────────────────────────────
 
     def _generate_smart_queries(self, schema: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -243,11 +452,11 @@ class DashboardManager:
                         LIMIT 36
                     """,
                     'chart_type': 'area',
-                    'position':   {'x': 0, 'y': 4, 'w': 8, 'h': 5},
+                    'position':   {'x': 0, 'y': 2, 'w': 8, 'h': 4},
                 })
                 break
 
-        # ── Top 10 performers (horizontal bar) ────────────────────────
+        # ── Top 10 performers (bar) ────────────────────────────────────
         if fact_table and fact_cat and fact_num:
             queries.append({
                 'id':         f'bar_top_{fact_table}',
@@ -260,10 +469,10 @@ class DashboardManager:
                     LIMIT 10
                 """,
                 'chart_type': 'bar',
-                'position':   {'x': 8, 'y': 4, 'w': 4, 'h': 5},
+                'position':   {'x': 8, 'y': 2, 'w': 4, 'h': 4},
             })
 
-            # ── Distribution donut (cross-filterable with bar) ────────
+            # ── Distribution donut ─────────────────────────────────────
             queries.append({
                 'id':         f'donut_{fact_table}_{fact_cat}',
                 'title':      f'{fact_cat.replace("_", " ").title()} Distribution',
@@ -275,7 +484,7 @@ class DashboardManager:
                     LIMIT 10
                 """,
                 'chart_type': 'donut',
-                'position':   {'x': 0, 'y': 9, 'w': 4, 'h': 5},
+                'position':   {'x': 0, 'y': 6, 'w': 4, 'h': 4},
             })
 
         # ── Bottom 5 — need attention ─────────────────────────────────
@@ -291,7 +500,7 @@ class DashboardManager:
                     LIMIT 5
                 """,
                 'chart_type': 'bar',
-                'position':   {'x': 4, 'y': 9, 'w': 4, 'h': 5},
+                'position':   {'x': 4, 'y': 6, 'w': 4, 'h': 4},
             })
 
         # ── Scatter: relationship between two numeric metrics ─────────
@@ -308,7 +517,7 @@ class DashboardManager:
                         LIMIT 200
                     """,
                     'chart_type': 'scatter',
-                    'position':   {'x': 8, 'y': 9, 'w': 4, 'h': 5},
+                    'position':   {'x': 8, 'y': 6, 'w': 4, 'h': 4},
                 })
                 break
 
@@ -352,6 +561,16 @@ class DashboardManager:
                         chart_type=qdef['chart_type'],
                         query=qdef['title'],
                     )
+                    # Use smart sizing based on chart type, fall back to query def position
+                    smart_pos = self._get_default_position(qdef['chart_type'], 0, [])
+                    position = qdef.get('position', smart_pos)
+                    # Override w/h with smart sizes but keep x/y from query def
+                    position = {
+                        'x': position.get('x', 0),
+                        'y': position.get('y', 9999),
+                        'w': smart_pos['w'],
+                        'h': smart_pos['h'],
+                    }
                     return {
                         'chart_id':   qdef['id'],
                         'title':      qdef['title'],
@@ -359,7 +578,7 @@ class DashboardManager:
                         'data':       result['data'],
                         'config':     cfg.get('config', {}),
                         'sql':        qdef['sql'].strip(),
-                        'position':   qdef['position'],
+                        'position':   position,
                         'created_at': datetime.now().isoformat(),
                     }
                 else:
@@ -417,6 +636,26 @@ class DashboardManager:
 
         return chart
 
+    def build_chart_preview(self, query: str, sql: str, result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Build a chart config without saving it to the dashboard (preview only)."""
+        if not result.get('success') or not result.get('data'):
+            return None
+
+        data = result['data']
+        chart_type = chart_recommender.recommend_chart_type(query=query, data=data, query_result_count=len(data))
+        chart_cfg  = chart_recommender.extract_chart_config(data=data, chart_type=chart_type, query=query)
+
+        return {
+            'chart_id':   str(uuid.uuid4()),
+            'title':      chart_cfg.get('title', query),
+            'type':       chart_type,
+            'data':       data,
+            'config':     chart_cfg.get('config', {}),
+            'sql':        sql,
+            'query':      query,
+            'created_at': datetime.now().isoformat(),
+        }
+
     def add_manual_chart(self, session_id: str, chart_def: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Add a manually-configured chart (from the chart builder UI)."""
         dashboard = self._get_dashboard(session_id)
@@ -440,12 +679,98 @@ class DashboardManager:
         logger.info(f"Added manual chart: {chart['title']}")
         return chart
 
-    def _next_position(self, session_id: str) -> Dict[str, int]:
+    def _get_default_position(self, chart_type: str, chart_index: int, all_charts: list) -> dict:
+        """Return importance-based default size; y=9999 so react-grid-layout compacts upward."""
+        SIZE_MAP = {
+            'kpi':      {'w': 3, 'h': 2},
+            'line':     {'w': 8, 'h': 4},
+            'area':     {'w': 8, 'h': 4},
+            'bar':      {'w': 6, 'h': 4},
+            'donut':    {'w': 4, 'h': 4},
+            'pie':      {'w': 4, 'h': 4},
+            'scatter':  {'w': 6, 'h': 4},
+            'treemap':  {'w': 6, 'h': 4},
+            'funnel':   {'w': 4, 'h': 4},
+            'radar':    {'w': 4, 'h': 4},
+            'table':    {'w': 12, 'h': 5},
+            'tornado':  {'w': 6, 'h': 4},
+        }
+        size = SIZE_MAP.get(chart_type, {'w': 6, 'h': 5})
+        return {'x': 0, 'y': 9999, 'w': size['w'], 'h': size['h']}
+
+    def generate_targeted_dashboard(self, session_id: str, topic: str) -> dict:
+        """Generate a targeted dashboard based on a topic/entity from the database schema."""
+        logger.info(f"Generating targeted dashboard for topic: '{topic}' (session: {session_id})")
+
+        schema = self._get_database_schema()
+        tables = schema.get('tables', {})
+
+        # Find relevant tables based on topic
+        relevant_tables = {t: v for t, v in tables.items() if topic.lower() in t.lower()}
+        if not relevant_tables:
+            relevant_tables = dict(list(tables.items())[:3])
+
+        focused_schema = {'tables': relevant_tables}
+        query_defs = self._generate_smart_queries(focused_schema)
+
+        # Get existing dashboard or create new one
         dashboard = self._get_dashboard(session_id)
-        if not dashboard or not dashboard.get('charts'):
-            return {'x': 0, 'y': 0, 'w': 6, 'h': 5}
-        max_y = max(c['position']['y'] + c['position']['h'] for c in dashboard['charts'])
-        return {'x': 0, 'y': max_y, 'w': 6, 'h': 5}
+        if not dashboard:
+            dashboard = {
+                'dashboard_id': str(uuid.uuid4()),
+                'session_id':   session_id,
+                'created_at':   datetime.now().isoformat(),
+                'charts':       [],
+                'filters':      {},
+                'layout':       'grid',
+            }
+
+        # Clear existing and rebuild
+        dashboard['charts'] = []
+
+        def run_query(qdef):
+            try:
+                result = sql_executor.execute_query(qdef['sql'])
+                if result['success'] and result.get('data'):
+                    cfg = chart_recommender.extract_chart_config(
+                        data=result['data'],
+                        chart_type=qdef['chart_type'],
+                        query=qdef['title'],
+                    )
+                    return {
+                        'chart_id':   qdef['id'],
+                        'title':      qdef['title'],
+                        'type':       qdef['chart_type'],
+                        'data':       result['data'],
+                        'config':     cfg.get('config', {}),
+                        'sql':        qdef['sql'].strip(),
+                        'position':   self._get_default_position(qdef['chart_type'], 0, []),
+                        'created_at': datetime.now().isoformat(),
+                    }
+            except Exception as e:
+                logger.error(f"Targeted query failed '{qdef['title']}': {e}")
+            return None
+
+        charts_by_id = {}
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = {pool.submit(run_query, qdef): qdef['id'] for qdef in query_defs}
+            for future in as_completed(futures):
+                chart = future.result()
+                if chart:
+                    charts_by_id[futures[future]] = chart
+
+        for qdef in query_defs:
+            chart = charts_by_id.get(qdef['id'])
+            if chart:
+                dashboard['charts'].append(chart)
+
+        self._save_dashboard(session_id, dashboard)
+        logger.info(f"Targeted dashboard saved — {len(dashboard['charts'])} charts for topic '{topic}'")
+        return dashboard
+
+    def _next_position(self, session_id: str) -> Dict[str, int]:
+        # Use y=9999 so react-grid-layout's compactType="vertical" pulls charts up automatically
+        return {'x': 0, 'y': 9999, 'w': 6, 'h': 5}
 
     # ── Public dashboard accessors ────────────────────────────────────────
 

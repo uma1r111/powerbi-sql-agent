@@ -52,6 +52,7 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove, onChartUpdat
     const [showEditPanel, setShowEditPanel] = useState(false);
     const [editTitle, setEditTitle] = useState(chart.title);
     const [editColor, setEditColor] = useState(chart.config?.color || '#6366f1');
+    const [editType, setEditType] = useState(chart.type);
     const chartRef = useRef(null);
 
     const t = theme || { surface: '#fff', border: '#e2e8f0', text: '#1e293b', textSub: '#64748b', textMuted: '#94a3b8', accent: '#6366f1', accentLight: '#eef2ff', shadow: '0 1px 3px rgba(0,0,0,0.08)' };
@@ -136,6 +137,7 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove, onChartUpdat
         if (onChartUpdate) {
             onChartUpdate(chart.chart_id, {
                 title: editTitle,
+                type: editType,
                 config: { ...chart.config, color: editColor }
             });
         }
@@ -252,7 +254,7 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove, onChartUpdat
                 {/* Inline edit panel */}
                 {showEditPanel && (
                     <div className="px-3 py-2 border-b shrink-0" style={{ borderColor: t.border, background: t.surfaceHover || t.surface }}>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <input
                                 value={editTitle}
                                 onChange={e => setEditTitle(e.target.value)}
@@ -260,6 +262,12 @@ const ChartCard = ({ chart, activeFilter, onFilterSelect, onRemove, onChartUpdat
                                 style={{ background: t.surface, color: t.text, borderColor: t.border }}
                                 placeholder="Chart title"
                             />
+                            <select value={editType} onChange={e => setEditType(e.target.value)}
+                                style={{ background: t.surface, color: t.text, border: `1px solid ${t.border}`, borderRadius: '6px', padding: '4px 8px', fontSize: '12px' }}>
+                                {Object.entries(CHART_TYPE_LABELS).filter(([id]) => id !== 'kpi').map(([id, label]) => (
+                                    <option key={id} value={id}>{label}</option>
+                                ))}
+                            </select>
                             <div className="flex gap-1">
                                 {COLORS_PALETTE.map(c => (
                                     <button key={c} onClick={() => setEditColor(c)}

@@ -100,6 +100,11 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str
+
 class LoginResponse(BaseModel):
     token: str
     user: dict
@@ -119,6 +124,7 @@ class QueryResponse(BaseModel):
     execution_time: Optional[float] = None
     timestamp: datetime = datetime.now()
     chart: Optional[Dict[str, Any]] = None
+    full_dashboard_generated: Optional[bool] = False
 
 class ConversationItem(BaseModel):
     id: int
@@ -185,11 +191,23 @@ def _get_session_context(session_id: str) -> dict:
     data = redis_client.get(redis_client.last_query_key(session_id))
     return data if data is not None else {}
 
-def _save_session_context(session_id: str, query: str, topic: str) -> None:
+def _get_conversation_history(session_id: str) -> list:
+    history_key = f"history:{session_id}"
+    history = redis_client.get(history_key)
+    return history if isinstance(history, list) else []
+
+def _save_session_context(session_id: str, query: str, topic: str, answer: str = "") -> None:
+    # Save last query context (for classifier)
     redis_client.set(
         redis_client.last_query_key(session_id),
         {"query": query, "topic": topic}
     )
+    # Save rolling history (last 10 turns)
+    history_key = f"history:{session_id}"
+    history = _get_conversation_history(session_id)
+    history.append({"q": query, "a": answer[:200], "topic": topic})
+    history = history[-10:]
+    redis_client.set(history_key, history, ttl=7 * 24 * 3600)
 
 # ------------------------------------------------------------------ #
 #  Root                                                                #
@@ -224,6 +242,24 @@ async def login_json(request: LoginRequest):
         "token": access_token,
         "user": {"email": user["email"], "full_name": user["full_name"]}
     }
+
+@app.post("/api/register", response_model=LoginResponse)
+async def register(request: RegisterRequest):
+    if request.email in fake_users_db:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    fake_users_db[request.email] = {
+        "username": request.email,
+        "full_name": request.full_name,
+        "email": request.email,
+        "hashed_password": request.password,
+        "disabled": False,
+    }
+    token = create_access_token(
+        {"sub": request.email},
+        timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    return {"token": token, "user": {"email": request.email, "full_name": request.full_name}}
+
 
 @app.get("/api/users/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_user)):
@@ -392,6 +428,39 @@ async def process_query(
                 chart=None,
             )
 
+        # ── Full Dashboard route ──────────────────────────────────────────────
+        _full_db_kws = [
+            'full dashboard', 'full analysis', 'complete overview', 'complete analysis',
+            'give me a dashboard', 'generate dashboard', 'create dashboard', 'dashboard for',
+            'analytics dashboard', 'full report',
+        ]
+        if any(kw in request.question.lower() for kw in _full_db_kws):
+            entity = 'sales'
+            q_lower = request.question.lower()
+            for kw in ['customer', 'product', 'order', 'employee', 'supplier', 'revenue']:
+                if kw in q_lower:
+                    entity = kw
+                    break
+            try:
+                dashboard_manager.generate_targeted_dashboard(request.session_id, entity)
+                print(f"📊 Full dashboard generated for entity: '{entity}'")
+                _save_session_context(
+                    request.session_id, request.question, entity,
+                    f"Generated complete {entity} analytics dashboard"
+                )
+            except Exception as e:
+                print(f"⚠️ Dashboard generation failed: {e}")
+            return QueryResponse(
+                success=True, sql=None, results=[],
+                explanation=(
+                    f"I've generated a complete **{entity}** analytics dashboard for you! "
+                    "It's been populated with key metrics, trends, and charts. "
+                    "Take a look at the Dashboard tab to explore your insights."
+                ),
+                warnings=[], error=None, execution_time=None, chart=None,
+                full_dashboard_generated=True
+            )
+
         session_context = _get_session_context(request.session_id)
         last_query = session_context.get("query", "")
         last_topic = session_context.get("topic", "")
@@ -417,6 +486,13 @@ async def process_query(
             )
             print(f"\n🔗 Context expansion: '{request.question}' → '{processed_query}'")
 
+        # Inject rolling conversation history for follow-up context
+        conversation_history = _get_conversation_history(request.session_id)
+        if conversation_history and response_type == 'follow_up':
+            context_str = "\n".join([f"Q: {h['q']}\nA: {h['a']}" for h in conversation_history[-5:]])
+            processed_query = f"[Context from previous queries:\n{context_str}\n]\n{processed_query}"
+            print(f"\n📚 Injected {len(conversation_history[-5:])} turns of context")
+
         preprocessed_query, corrections = preprocessor.preprocess(processed_query)
 
         if corrections:
@@ -439,8 +515,6 @@ async def process_query(
         elif 'customer' in preprocessed_query.lower(): topic = "customer"
         elif 'order' in preprocessed_query.lower(): topic = "order"
         elif 'sales' in preprocessed_query.lower() or 'revenue' in preprocessed_query.lower(): topic = "sales"
-
-        _save_session_context(request.session_id, preprocessed_query, topic)
 
         response_text = ""
         for msg in reversed(result.messages or []):
@@ -477,11 +551,14 @@ async def process_query(
         chart_config = None
         if query_results and len(query_results) > 0 and result.execution_successful:
             try:
-                should_visualize = any(keyword in preprocessed_query.lower() for keyword in [
-                    'show', 'chart', 'graph', 'visualize', 'plot', 'compare', 'trend',
-                    'top', 'best', 'worst', 'distribution', 'breakdown', 'over time'
+                # Only auto-add for EXPLICIT visualization requests
+                explicit_viz = any(kw in preprocessed_query.lower() for kw in [
+                    'chart', 'graph', 'visualize', 'plot', 'add to dashboard', 'show chart',
+                    'create chart', 'dashboard', 'visualization'
                 ])
-                if should_visualize or len(query_results) <= 20:
+
+                if explicit_viz:
+                    # Auto-add to dashboard
                     chart_config = dashboard_manager.add_chart_from_query(
                         session_id=request.session_id,
                         query=preprocessed_query,
@@ -489,9 +566,22 @@ async def process_query(
                         result={'success': True, 'data': query_results}
                     )
                     if chart_config:
-                        print(f"📊 Chart generated: {chart_config.get('type')} - {chart_config.get('title')}")
+                        chart_config['auto_added'] = True
+                        print(f"📊 Chart auto-added: {chart_config.get('type')} - {chart_config.get('title')}")
+                else:
+                    # Build preview only (not added to dashboard)
+                    chart_config = dashboard_manager.build_chart_preview(
+                        query=preprocessed_query,
+                        sql=sql_query,
+                        result={'success': True, 'data': query_results}
+                    )
+                    if chart_config:
+                        chart_config['auto_added'] = False
+                        print(f"📊 Chart preview built: {chart_config.get('type')} - {chart_config.get('title')}")
             except Exception as e:
                 print(f"⚠️ Could not generate chart: {e}")
+
+        _save_session_context(request.session_id, preprocessed_query, topic, response_text)
 
         print(f"\n{'='*70}")
         print(f"   User Input: {request.question}")

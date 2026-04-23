@@ -175,7 +175,7 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
                     ...prev,
                     charts: prev.charts.map(c =>
                         c.chart_id === chartId
-                            ? { ...c, title: updates.title ?? c.title, config: { ...c.config, ...(updates.config || {}) } }
+                            ? { ...c, title: updates.title ?? c.title, type: updates.type ?? c.type, config: { ...c.config, ...(updates.config || {}) } }
                             : c
                     ),
                 }));
@@ -251,15 +251,27 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
         );
     }
 
-    const layout = dashboard.charts.map((chart, idx) => ({
-        i: chart.chart_id,
-        x: chart.position?.x ?? (chart.type === 'kpi' ? (idx % 4) * 3 : (idx % 2) * 6),
-        y: chart.position?.y ?? Math.floor(idx / (chart.type === 'kpi' ? 4 : 2)) * 6,
-        w: chart.position?.w ?? (chart.type === 'kpi' ? 3 : 6),
-        h: chart.position?.h ?? (chart.type === 'kpi' ? 3 : 6),
-        minW: chart.type === 'kpi' ? 2 : 3,
-        minH: chart.type === 'kpi' ? 2 : 4,
-    }));
+    const layout = dashboard.charts.map((chart, idx) => {
+        if (chart.position?.x !== undefined && chart.position?.y !== undefined) {
+            return {
+                i: chart.chart_id,
+                x: chart.position.x, y: chart.position.y,
+                w: chart.position.w ?? (chart.type === 'kpi' ? 3 : 6),
+                h: chart.position.h ?? (chart.type === 'kpi' ? 2 : 5),
+                minW: chart.type === 'kpi' ? 2 : 3,
+                minH: chart.type === 'kpi' ? 2 : 4,
+            };
+        }
+        return {
+            i: chart.chart_id,
+            x: chart.type === 'kpi' ? (idx % 4) * 3 : 0,
+            y: 9999,
+            w: chart.position?.w ?? (chart.type === 'kpi' ? 3 : 6),
+            h: chart.position?.h ?? (chart.type === 'kpi' ? 2 : 5),
+            minW: chart.type === 'kpi' ? 2 : 3,
+            minH: chart.type === 'kpi' ? 2 : 4,
+        };
+    });
 
     const activeFilterSource = activeFilter
         ? dashboard.charts.find(c => c.chart_id === activeFilter.sourceChartId)
@@ -336,7 +348,7 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
                         className="layout"
                         layout={layout}
                         cols={12}
-                        rowHeight={55}
+                        rowHeight={50}
                         width={gridWidth}
                         isDraggable
                         isResizable
