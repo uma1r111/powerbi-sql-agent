@@ -138,16 +138,64 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
         if (!gridRef.current) return;
         setExporting(true);
         setShowExportMenu(false);
+        const overridden = [];
         try {
             await new Promise(r => setTimeout(r, 100));
-            const dataUrl = await toPng(gridRef.current, { backgroundColor: t.bg, pixelRatio: 2 });
+
+            const node = gridRef.current;
+            const fullH = node.scrollHeight;
+            const fullW = node.scrollWidth;
+
+            // Walk up the DOM and temporarily remove all overflow/height clipping so
+            // html-to-image sees the full grid content, not just the scrolled viewport.
+            let el = node;
+            while (el && el !== document.body) {
+                overridden.push({
+                    el,
+                    overflow: el.style.overflow,
+                    overflowY: el.style.overflowY,
+                    overflowX: el.style.overflowX,
+                    height: el.style.height,
+                    maxHeight: el.style.maxHeight,
+                    minHeight: el.style.minHeight,
+                    flex: el.style.flex,
+                });
+                el.style.overflow = 'visible';
+                el.style.maxHeight = 'none';
+                el.style.minHeight = '0';
+                if (el === node) {
+                    // Force the scroll container to its full content size
+                    el.style.height = `${fullH}px`;
+                    el.style.flex = 'none';
+                } else {
+                    el.style.height = 'auto';
+                }
+                el = el.parentElement;
+            }
+
+            await new Promise(r => setTimeout(r, 100));
+
+            const dataUrl = await toPng(node, { backgroundColor: t.bg, pixelRatio: 2, width: fullW, height: fullH });
+
             const a = Object.assign(document.createElement('a'), {
                 href: dataUrl,
                 download: `dashboard-${new Date().toISOString().slice(0,10)}.png`
             });
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
         } catch (e) { console.error(e); }
-        finally { setExporting(false); }
+        finally {
+            // Always restore — even on error
+            for (const s of overridden) {
+                s.el.style.overflow = s.overflow;
+                s.el.style.overflowY = s.overflowY;
+                s.el.style.overflowX = s.overflowX;
+                s.el.style.height = s.height;
+                s.el.style.maxHeight = s.maxHeight;
+                s.el.style.minHeight = s.minHeight;
+                s.el.style.flex = s.flex;
+            }
+            setExporting(false);
+        }
     };
 
     const exportAllCSV = () => {
@@ -250,31 +298,34 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
     };
 
     // ── Layout calculation ──────────────────────────────────────────────────────
-    // Build grid layout with a 2-column arrangement for regular charts
+    // Build grid layout: KPIs 3-per-row (w=4), regular charts 2-per-row (w=6)
     const layout = useMemo(() => {
         if (!dashboard?.charts) return [];
         let regularCount = 0;
-        return dashboard.charts.map((chart, idx) => {
+        let kpiCount = 0;
+        return dashboard.charts.map((chart) => {
             if (chart.position?.x !== undefined && chart.position?.y !== undefined) {
                 return {
                     i: chart.chart_id,
                     x: chart.position.x, y: chart.position.y,
-                    w: chart.position.w ?? (chart.type === 'kpi' ? 3 : 6),
+                    w: chart.position.w ?? (chart.type === 'kpi' ? 4 : 6),
                     h: chart.position.h ?? (chart.type === 'kpi' ? 2 : 4),
                     minW: chart.type === 'kpi' ? 2 : 3,
                     minH: chart.type === 'kpi' ? 2 : 3,
                 };
             }
-            // No saved position — auto-arrange in 2-column grid
+            // No saved position — auto-arrange
             if (chart.type === 'kpi') {
+                const col = kpiCount % 3;
+                kpiCount++;
                 return {
                     i: chart.chart_id,
-                    x: (idx % 4) * 3, y: 0,
-                    w: 3, h: 2, minW: 2, minH: 2,
+                    x: col * 4, y: 0,
+                    w: 4, h: 2, minW: 2, minH: 2,
                 };
             }
             // Regular charts: alternate left (x=0) and right (x=6) columns
-            const col = regularCount % 2;          // 0 = left, 1 = right
+            const col = regularCount % 2;
             const row = Math.floor(regularCount / 2);
             regularCount++;
             return {
@@ -386,7 +437,7 @@ const DashboardContainer = ({ sessionId = 'default', onChartsLoaded, onChartBuil
                     <div>
                         <h2 className="text-sm font-bold" style={{ color: t.text }}>Dashboard</h2>
                         <p className="text-xs" style={{ color: t.textMuted }}>
-                            {dashboard.charts.length} chart{dashboard.charts.length !== 1 ? 's' : ''} · Drag to rearrange
+                            {dashboard.charts.length} chart{dashboard.charts.length !== 1 ? 's' : ''} • Drag to rearrange
                         </p>
                     </div>
 

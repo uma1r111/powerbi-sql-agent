@@ -510,7 +510,7 @@ const ChatPanel = ({ messages, setMessages, scrollToIndex, sessionId, onChartCre
           </div>
           <div>
             <p className="text-white text-sm font-bold">AI Assistant</p>
-            <p className="text-xs" style={{ color: 'rgba(255,255,255,.7)' }}>Powered by Llama 3.3 · 70B</p>
+            <p className="text-xs" style={{ color: 'rgba(255,255,255,.7)' }}>Powered by Llama-3.3-70B</p>
           </div>
         </div>
       )}
@@ -825,7 +825,7 @@ const AskAIDrawerHeader = ({ ragActive, onClose, theme: t }) => (
           )}
         </div>
         <p style={{ color:'rgba(255,255,255,.65)',fontSize:'10px',margin:0 }}>
-          Llama 3.3 · 70B{ragActive ? ' · Docs indexed' : ''}
+          Llama-3.3-70B{ragActive ? ' · Docs indexed' : ''}
         </p>
       </div>
     </div>
@@ -1277,7 +1277,7 @@ const Dashboard = ({ user, onLogout }) => {
               <Search style={{ width:'15px',height:'15px',color:t.textMuted,flexShrink:0 }} />
               <input type="text" value={topQuery} onChange={e=>setTopQuery(e.target.value)}
                 onKeyDown={e=>{ if(e.key==='Enter'&&topQuery.trim()) handleTopQuery(topQuery); }}
-                placeholder="Ask anything about your data…"
+                placeholder="Ask anything about your data… — ask in plain English"
                 style={{ flex:1,background:'transparent',border:'none',outline:'none',color:t.text,fontSize:'13px',padding:'10px 0' }} />
               <kbd style={{ fontSize:'10px',padding:'2px 6px',borderRadius:'4px',background:t.accentLight,color:t.textMuted,border:`1px solid ${t.border}` }}>↵</kbd>
             </div>

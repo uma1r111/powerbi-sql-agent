@@ -112,7 +112,7 @@ const KPICard = ({ chart, theme }) => {
                             <span style={{ fontSize: '12px', fontWeight: '600', color: trendColor }}>
                                 {trend > 0 ? '+' : ''}{trend}%
                             </span>
-                            <span style={{ fontSize: '11px', color: t.textMuted }}>vs last period</span>
+                            <span style={{ fontSize: '11px', color: t.textMuted }}>vs last month</span>
                         </div>
                     )}
                 </div>

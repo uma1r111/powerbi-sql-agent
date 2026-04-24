@@ -130,7 +130,7 @@ export const THEMES = {
 const ThemeContext = createContext(null);
 
 export const ThemeProvider = ({ children }) => {
-    const [themeId, setThemeId] = useState(() => localStorage.getItem('iq-theme') || 'light');
+    const [themeId, setThemeId] = useState(() => localStorage.getItem('iq-theme') || 'dark');
     const theme = THEMES[themeId] || THEMES.light;
 
     const setTheme = (id) => {
