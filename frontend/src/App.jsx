@@ -1163,9 +1163,6 @@ const Dashboard = ({ user, onLogout }) => {
     { id:'dashboard',     label:'Dashboard',      icon:BarChart2 },
     { id:'history',       label:'Query History',  icon:Clock },
     { id:'visualizations',label:'Chart Gallery',  icon:TrendingUp },
-    { id:'data',          label:'Data Sources',   icon:Database },
-    { id:'reports',       label:'Reports',        icon:FileText },
-    { id:'security',      label:'Security (RLS)', icon:Shield },
   ];
 
   const sidebarW = sidebarOpen ? 220 : 56;
