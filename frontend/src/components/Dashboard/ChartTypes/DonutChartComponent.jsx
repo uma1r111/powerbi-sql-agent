@@ -66,50 +66,58 @@ const DonutChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) =>
     };
 
     return (
-        <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-                <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="45%"
-                    innerRadius="42%"
-                    outerRadius="68%"
-                    dataKey="value"
-                    labelLine={false}
-                    label={renderCustomizedLabel}
-                    onClick={(_, index) => onSelect?.(labelKey, data[index]?.[labelKey])}
-                    style={{ cursor: onSelect ? 'pointer' : 'default' }}
-                >
-                    {chartData.map((entry, index) => (
-                        <Cell
-                            key={`cell-${index}`}
-                            fill={colors[index % colors.length]}
-                            opacity={!hasSelection ? 1 : String(entry.name) === selectedValue ? 1 : 0.2}
-                            stroke={hasSelection && String(entry.name) === selectedValue ? '#1d4ed8' : 'none'}
-                            strokeWidth={2}
-                        />
-                    ))}
-                </Pie>
-                {/* Center label */}
-                <text x="50%" y="43%" textAnchor="middle" dominantBaseline="middle">
-                    <tspan x="50%" dy="-4" fontSize="20" fontWeight="700" fill="#1e293b">
-                        {formatTotal(total)}
-                    </tspan>
-                    <tspan x="50%" dy="18" fontSize="10" fill="#64748b" fontWeight="500">
-                        TOTAL
-                    </tspan>
-                </text>
-                <Tooltip content={<CustomTooltip />} />
-                <Legend
-                    verticalAlign="bottom"
-                    height={50}
-                    iconType="circle"
-                    iconSize={8}
-                    wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }}
-                    formatter={(value) => value.length > 20 ? value.slice(0, 20) + '…' : value}
-                />
-            </PieChart>
-        </ResponsiveContainer>
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                    <Pie
+                        data={chartData}
+                        cx="50%"
+                        cy="44%"
+                        innerRadius="38%"
+                        outerRadius="62%"
+                        dataKey="value"
+                        fill={colors[0]}
+                        labelLine={false}
+                        label={renderCustomizedLabel}
+                        isAnimationActive={false}
+                        onClick={(_, index) => onSelect?.(labelKey, data[index]?.[labelKey])}
+                        style={{ cursor: onSelect ? 'pointer' : 'default' }}
+                    >
+                        {chartData.map((entry, index) => (
+                            <Cell
+                                key={`cell-${index}`}
+                                fill={colors[index % colors.length]}
+                                opacity={!hasSelection ? 1 : String(entry.name) === selectedValue ? 1 : 0.2}
+                                stroke={hasSelection && String(entry.name) === selectedValue ? '#1d4ed8' : 'none'}
+                                strokeWidth={2}
+                            />
+                        ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend
+                        verticalAlign="bottom"
+                        height={46}
+                        iconType="circle"
+                        iconSize={8}
+                        wrapperStyle={{ fontSize: '11px', paddingTop: '2px' }}
+                        formatter={(value) => value.length > 18 ? value.slice(0, 18) + '…' : value}
+                    />
+                </PieChart>
+            </ResponsiveContainer>
+            {/* Center label — rendered as HTML overlay so it never interferes with Pie rendering */}
+            <div style={{
+                position: 'absolute', top: '44%', left: '50%',
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center', pointerEvents: 'none',
+            }}>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b', lineHeight: 1.1 }}>
+                    {formatTotal(total)}
+                </div>
+                <div style={{ fontSize: '9px', color: '#64748b', fontWeight: '600', letterSpacing: '1px', marginTop: '2px' }}>
+                    TOTAL
+                </div>
+            </div>
+        </div>
     );
 };
 

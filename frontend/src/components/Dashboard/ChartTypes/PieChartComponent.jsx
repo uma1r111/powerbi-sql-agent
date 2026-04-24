@@ -81,6 +81,8 @@ const PieChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
                     label={renderLabel}
                     outerRadius="70%"
                     dataKey="value"
+                    fill={colors[0]}
+                    isAnimationActive={false}
                     onClick={handleClick}
                     style={{ cursor: onSelect ? 'pointer' : 'default' }}
                 >

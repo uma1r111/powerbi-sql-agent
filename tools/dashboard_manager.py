@@ -731,13 +731,20 @@ class DashboardManager:
         analysis = self._build_analysis(schema)
         relationships = self._detect_relationships(schema)
 
-        # Common business-term → dimension-table aliases (try most JOIN-rich first)
+        # Common business-term → dimension-table aliases.
+        # 'sales'/'revenue' try 'order' first so they generate an orders-focused
+        # dashboard that looks different from the default customer-focused one.
         _TOPIC_ALIASES: Dict[str, List[str]] = {
-            'sales':       ['customer', 'order', 'orders'],
-            'revenue':     ['customer', 'order', 'orders'],
-            'purchase':    ['customer', 'order', 'orders'],
-            'transaction': ['customer', 'order', 'orders'],
+            'sales':       ['product', 'order', 'customer'],
+            'revenue':     ['product', 'order', 'customer'],
+            'purchase':    ['order', 'orders', 'customer'],
+            'transaction': ['order', 'orders', 'customer'],
             'overall':     ['customer', 'order', 'product'],
+            'orders':      ['order', 'orders'],
+            'customers':   ['customer', 'customers'],
+            'products':    ['product', 'products'],
+            'employees':   ['employee', 'employees'],
+            'suppliers':   ['supplier', 'suppliers'],
         }
 
         # 1. Try exact topic with JOIN-based queries

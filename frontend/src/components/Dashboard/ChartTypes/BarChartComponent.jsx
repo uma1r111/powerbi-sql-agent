@@ -53,6 +53,14 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
         );
     }
 
+    // Ensure numeric column values are JS numbers (guards against string-typed floats from JSON)
+    const parsedData = data.map(row => {
+        const r = { ...row };
+        const numCol = isHorizontal ? xAxis : yAxis;
+        if (r[numCol] != null) r[numCol] = Number(r[numCol]);
+        return r;
+    });
+
     const barLabelKey = isHorizontal ? yAxis : xAxis;
 
     const getCellOpacity = (entry) => {
@@ -100,7 +108,7 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
         <ResponsiveContainer width="100%" height="100%">
             {isHorizontal ? (
                 <BarChart
-                    data={data}
+                    data={parsedData}
                     layout="vertical"
                     margin={{ top: 10, right: 30, left: 100, bottom: 10 }}
                 >
@@ -116,11 +124,13 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
                     <Tooltip content={<CustomTooltip />} />
                     <Bar
                         dataKey={xAxis}
+                        fill={color}
                         radius={[0, 4, 4, 0]}
+                        isAnimationActive={false}
                         onClick={(barData) => handleClick(barData)}
                         style={{ cursor: isSelectable ? 'pointer' : 'default' }}
                     >
-                        {data.map((entry, index) => (
+                        {parsedData.map((entry, index) => (
                             <Cell
                                 key={`cell-${index}`}
                                 fill={getCellFill(index)}
@@ -133,7 +143,7 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
                 </BarChart>
             ) : (
                 <BarChart
-                    data={data}
+                    data={parsedData}
                     margin={{ top: 10, right: 30, left: 20, bottom: 50 }}
                 >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -145,15 +155,17 @@ const BarChartComponent = ({ chart, selectedKey, selectedValue, onSelect }) => {
                         height={80}
                         style={{ fontSize: '11px' }}
                     />
-                    <YAxis stroke="#6b7280" />
+                    <YAxis type="number" stroke="#6b7280" domain={[0, 'auto']} />
                     <Tooltip content={<CustomTooltip />} />
                     <Bar
                         dataKey={yAxis}
+                        fill={color}
                         radius={[4, 4, 0, 0]}
+                        isAnimationActive={false}
                         onClick={(barData) => handleClick(barData)}
                         style={{ cursor: isSelectable ? 'pointer' : 'default' }}
                     >
-                        {data.map((entry, index) => (
+                        {parsedData.map((entry, index) => (
                             <Cell
                                 key={`cell-${index}`}
                                 fill={getCellFill(index)}
