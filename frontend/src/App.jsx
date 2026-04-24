@@ -61,321 +61,363 @@ const LoginPage = ({ onLogin }) => {
     try {
       await axios.post(`${API_URL}/register`, { email, password, full_name: fullName });
       setTab('signin');
-      setSuccessMsg('Account created! Sign in with your credentials.');
+      setSuccessMsg('Account created! Sign in below.');
       setPassword(''); setConfirmPassword('');
     } catch (err) {
       setError(err.response?.data?.detail || 'Registration failed. Please try again.');
     } finally { setLoading(false); }
   };
 
-  const FEATURES = [
-    { icon: MessageSquare, text: 'Natural language to SQL — ask in plain English', col: '#6366f1' },
-    { icon: BarChart2,     text: '12+ interactive chart types with cross-filtering', col: '#d4af37' },
-    { icon: Database,      text: 'Live database analysis across all your tables',    col: '#06b6d4' },
-    { icon: BookOpen,      text: 'RAG-powered document Q&A with source citations',  col: '#10b981' },
-  ];
-
-
-  // Shared styles
-  const fieldBox = {
-    display: 'flex', alignItems: 'center', gap: '12px',
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(212,175,55,0.14)',
-    borderRadius: '14px', padding: '0 18px',
-    transition: 'border-color .2s, box-shadow .2s',
+  // Shared input field style
+  const IQ_FIELD = {
+    width: '100%', background: 'transparent',
+    border: '1px solid rgba(15,30,100,.18)', borderRadius: '8px',
+    padding: '12px 14px 12px 40px',
+    fontSize: '13.5px', color: '#111827', outline: 'none',
+    fontFamily: 'inherit', transition: 'border-color .15s, box-shadow .15s',
   };
-  const fieldInput = {
-    flex: 1, background: 'transparent', border: 'none', outline: 'none',
-    color: '#e8d5a3', fontSize: '15px', padding: '15px 0',
-    caretColor: '#d4af37',
-  };
-  const fieldIcon = { width: '17px', height: '17px', color: 'rgba(212,175,55,0.45)', flexShrink: 0 };
 
   return (
     <div style={{
       minHeight: '100vh', display: 'flex',
-      fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
-      background: '#080d1a',
+      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      background: '#0e1f7a',
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-        @keyframes iqShimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
-        @keyframes iqPulse { 0%,100%{opacity:.22;transform:scale(1)} 50%{opacity:.46;transform:scale(1.04)} }
-        @keyframes iqFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-        @keyframes iqFadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
-        .iq-form-card { animation: iqFadeUp .5s ease forwards; }
-        .iq-shimmer-btn {
-          background: linear-gradient(135deg,#c9a227 0%,#e8c840 50%,#c9a227 100%);
-          background-size: 200% auto; transition: all .25s ease;
-          font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-          -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+
+        /* Blob drift animations */
+        @keyframes blobA { 0%,100%{transform:translate(0,0) rotate(0deg) scale(1)} 33%{transform:translate(40px,-30px) rotate(8deg) scale(1.04)} 66%{transform:translate(-20px,25px) rotate(-5deg) scale(.97)} }
+        @keyframes blobB { 0%,100%{transform:translate(0,0) rotate(0deg) scale(1)} 40%{transform:translate(-35px,20px) rotate(-10deg) scale(1.05)} 70%{transform:translate(25px,-15px) rotate(6deg) scale(.96)} }
+        @keyframes blobC { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(20px,30px) scale(1.06)} }
+
+        /* Card slide-in */
+        @keyframes slideIn { from{opacity:0;transform:translateX(-18px)} to{opacity:1;transform:translateX(0)} }
+        .iq-card { animation: slideIn .45s cubic-bezier(.22,1,.36,1) both; }
+
+        /* Input focus */
+        .iq-inp:focus {
+          border-color: rgba(20,50,180,.45) !important;
+          box-shadow: 0 0 0 3px rgba(20,50,180,.09) !important;
         }
-        .iq-shimmer-btn:hover:not(:disabled) {
-          animation: iqShimmer 1.6s linear infinite;
-          box-shadow: 0 10px 32px rgba(212,175,55,.4), 0 0 0 1px rgba(212,175,55,.2);
-          transform: translateY(-1px);
-        }
-        .iq-shimmer-btn:active:not(:disabled) { transform: translateY(0); }
-        .iq-field:focus-within {
-          border-color: rgba(212,175,55,.4) !important;
-          box-shadow: 0 0 0 3px rgba(212,175,55,.07);
-        }
-        .iq-demo:hover { background: rgba(212,175,55,.15) !important; transform: translateY(-1px); }
-        .iq-tab:hover { color: rgba(212,175,55,.9) !important; }
-        .iq-link:hover { color: #d4af37 !important; }
-        * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        .iq-inp::placeholder { color: rgba(0,0,0,.28) !important; }
+
+        /* Login button */
+        .iq-btn { transition: background .15s, transform .1s, box-shadow .15s; }
+        .iq-btn:hover:not(:disabled) { background: #1e40af !important; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(20,50,180,.3); }
+        .iq-btn:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
+        .iq-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+        /* Quick-access demo */
+        .iq-qa:hover { background: rgba(15,30,120,.07) !important; color: #1e3a8a !important; border-color: rgba(15,30,120,.22) !important; }
+
+        /* Tab underline */
+        .iq-tab:hover { color: #1e3a8a !important; }
+
+        /* Right-panel nav links */
+        .rp-nav:hover { color: rgba(255,255,255,.9) !important; }
+
+        * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; box-sizing: border-box; }
       `}</style>
 
-      {/* ══ LEFT PANEL ══════════════════════════════════════════════════════ */}
-      <div style={{
-        width: '480px', flexShrink: 0,
-        background: 'linear-gradient(160deg,#0a0f1e 0%,#080d18 100%)',
-        borderRight: '1px solid rgba(212,175,55,0.07)',
-        padding: '56px 48px',
+      {/* ═══════════════ LEFT — WHITE FORM PANEL ═══════════════ */}
+      <div className="iq-card" style={{
+        width: '420px', flexShrink: 0,
+        background: '#FFFFFF',
         display: 'flex', flexDirection: 'column',
-        position: 'relative', overflow: 'hidden',
+        padding: '36px 44px 32px',
+        boxShadow: '6px 0 48px rgba(5,15,60,.22)',
+        position: 'relative', zIndex: 2,
       }}>
-        {/* Decorative grid */}
-        <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.03, pointerEvents: 'none' }}>
-          <defs><pattern id="lgrid" width="50" height="50" patternUnits="userSpaceOnUse">
-            <path d="M50 0L0 0 0 50" fill="none" stroke="#d4af37" strokeWidth=".7"/>
-          </pattern></defs>
-          <rect width="100%" height="100%" fill="url(#lgrid)" />
-        </svg>
-        {/* Glow blobs */}
-        <div style={{ position:'absolute',top:'10%',left:'-10%',width:'400px',height:'400px',borderRadius:'50%',background:'radial-gradient(circle,rgba(25,55,160,.1) 0%,transparent 70%)',animation:'iqPulse 10s ease-in-out infinite',pointerEvents:'none' }} />
-        <div style={{ position:'absolute',bottom:'5%',right:'-10%',width:'320px',height:'320px',borderRadius:'50%',background:'radial-gradient(circle,rgba(212,175,55,.07) 0%,transparent 70%)',animation:'iqPulse 13s ease-in-out infinite 3s',pointerEvents:'none' }} />
 
-        {/* Logo + Brand */}
-        <div style={{ marginBottom: '40px' }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '40px' }}>
           <div style={{
-            width: '80px', height: '80px', borderRadius: '24px',
-            background: 'linear-gradient(145deg,#c29020 0%,#e8c840 40%,#f5e060 55%,#d4af37 75%,#a07820 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px',
-            boxShadow: '0 16px 48px rgba(212,175,55,.38),0 0 0 1px rgba(212,175,55,.18),inset 0 1px 0 rgba(255,255,255,.3)',
-            animation: 'iqFloat 5.5s ease-in-out infinite',
-            position: 'relative',
+            width: '34px', height: '34px', borderRadius: '8px',
+            background: '#1e3a8a',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
-            <svg width="50" height="37" viewBox="0 0 50 37" fill="none">
-              <rect x="1" y="1" width="8" height="35" rx="3" fill="#0a0f1e"/>
-              <circle cx="35" cy="18" r="14" stroke="#0a0f1e" strokeWidth="7" fill="none"/>
-              <line x1="44" y1="27" x2="51" y2="36" stroke="#0a0f1e" strokeWidth="7" strokeLinecap="round"/>
+            <svg width="17" height="13" viewBox="0 0 50 37" fill="none">
+              <rect x="1" y="1" width="8" height="35" rx="3" fill="white"/>
+              <circle cx="35" cy="18" r="14" stroke="white" strokeWidth="7" fill="none"/>
+              <line x1="44" y1="27" x2="51" y2="36" stroke="white" strokeWidth="7" strokeLinecap="round"/>
             </svg>
-            <div style={{ position:'absolute',top:'8px',right:'9px',width:'6px',height:'6px',borderRadius:'50%',background:'rgba(255,255,255,.5)' }} />
           </div>
-
-          <h1 style={{
-            fontSize: '26px', fontWeight: '800', letterSpacing: '3px',
-            color: '#e8d595', margin: '0 0 6px',
-            fontFamily: "'Inter', sans-serif",
-          }}>INTELLIQUERY</h1>
-          <p style={{ fontSize: '11px', letterSpacing: '1.8px', color: 'rgba(190,160,100,.55)', margin: 0, textTransform: 'uppercase', fontWeight: '500' }}>
-            AI-Driven Analytics Suite
-          </p>
+          <div>
+            <p style={{ fontSize: '13px', fontWeight: '700', color: '#111827', margin: 0, lineHeight: '1.25', letterSpacing: '.2px' }}>IntelliQuery</p>
+            <p style={{ fontSize: '10px', color: 'rgba(0,0,0,.38)', margin: 0, letterSpacing: '.5px' }}>Analytics Platform</p>
+          </div>
         </div>
 
-        {/* Tagline */}
-        <p style={{ fontSize: '16px', lineHeight: '1.75', color: 'rgba(200,180,140,.65)', marginBottom: '36px' }}>
-          Transform natural language into actionable data insights with enterprise-grade AI analytics.
-        </p>
+        {/* Avatar circle */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '28px' }}>
+          <div style={{
+            width: '68px', height: '68px', borderRadius: '50%',
+            background: '#1e3a8a',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 8px 24px rgba(30,58,138,.28)',
+          }}>
+            <User style={{ width: '28px', height: '28px', color: 'white' }} />
+          </div>
+        </div>
 
-        {/* Features */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginBottom: '40px' }}>
-          {FEATURES.map(({ icon: Icon, text, col }) => (
-            <div key={text} style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-              <div style={{
-                width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
-                background: `${col}18`, border: `1px solid ${col}28`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+        {/* Tab underline switcher */}
+        <div style={{ display: 'flex', borderBottom: '1px solid rgba(0,0,0,.08)', marginBottom: '24px' }}>
+          {[{ id: 'signin', label: 'Sign In' }, { id: 'register', label: 'Register' }].map(({ id, label }) => (
+            <button key={id} className="iq-tab"
+              onClick={() => { setTab(id); setError(''); setSuccessMsg(''); }}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                padding: '0 0 10px', marginRight: '20px', marginBottom: '-1px',
+                fontSize: '13px', fontWeight: '600',
+                color: tab === id ? '#1e3a8a' : 'rgba(0,0,0,.35)',
+                borderBottom: tab === id ? '2px solid #1e3a8a' : '2px solid transparent',
+                transition: 'color .15s', fontFamily: 'inherit',
               }}>
-                <Icon style={{ width: '16px', height: '16px', color: col }} />
-              </div>
-              <p style={{ fontSize: '14px', color: 'rgba(210,185,140,.7)', lineHeight: '1.5', margin: '6px 0 0' }}>{text}</p>
-            </div>
+              {label}
+            </button>
           ))}
         </div>
 
+        {/* Alerts */}
+        {successMsg && (
+          <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'7px', padding:'10px 13px', fontSize:'12.5px', color:'#166534', marginBottom:'16px' }}>
+            {successMsg}
+          </div>
+        )}
+        {error && (
+          <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'7px', padding:'10px 13px', fontSize:'12.5px', color:'#991b1b', marginBottom:'16px' }}>
+            {error}
+          </div>
+        )}
+
+        {/* ── SIGN IN FORM ── */}
+        {tab === 'signin' && (
+          <form onSubmit={handleSignIn} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+            {/* Email */}
+            <div style={{ position: 'relative' }}>
+              <Mail style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', width:'14px', height:'14px', color:'rgba(0,0,0,.28)', pointerEvents:'none' }} />
+              <input className="iq-inp" type="email" value={email} onChange={e => setEmail(e.target.value)}
+                required placeholder="Email address" style={IQ_FIELD} />
+            </div>
+
+            {/* Password */}
+            <div style={{ position: 'relative' }}>
+              <Lock style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', width:'14px', height:'14px', color:'rgba(0,0,0,.28)', pointerEvents:'none' }} />
+              <input className="iq-inp" type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                required placeholder="Password" style={{ ...IQ_FIELD, paddingRight: '38px' }} />
+              <button type="button" onClick={() => setShowPwd(!showPwd)}
+                style={{ position:'absolute', right:'11px', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'rgba(0,0,0,.28)', display:'flex', padding:'2px' }}>
+                {showPwd ? <EyeOff style={{ width:'14px', height:'14px' }} /> : <Eye style={{ width:'14px', height:'14px' }} />}
+              </button>
+            </div>
+
+            {/* CTA */}
+            <button type="submit" disabled={loading} className="iq-btn"
+              style={{
+                width: '100%', padding: '13px', marginTop: '4px',
+                background: '#1e3a8a', border: 'none', borderRadius: '8px',
+                fontSize: '13px', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase',
+                color: '#fff', cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              {loading ? 'Signing in…' : 'Login'}
+            </button>
+
+            {/* Remember me + Forgot */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop: '2px' }}>
+              <label style={{ display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', fontSize:'12px', color:'rgba(0,0,0,.42)', userSelect:'none' }}>
+                <input type="checkbox" style={{ width:'13px', height:'13px', accentColor:'#1e3a8a', cursor:'pointer' }} />
+                Remember me
+              </label>
+              <button type="button"
+                style={{ background:'none', border:'none', cursor:'pointer', fontSize:'12px', color:'rgba(0,0,0,.38)', fontFamily:'inherit', padding:0, transition:'color .15s' }}
+                onMouseEnter={e => e.target.style.color='#1e3a8a'}
+                onMouseLeave={e => e.target.style.color='rgba(0,0,0,.38)'}>
+                Forgot your password?
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* ── REGISTER FORM ── */}
+        {tab === 'register' && (
+          <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+            <div style={{ position: 'relative' }}>
+              <User style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', width:'14px', height:'14px', color:'rgba(0,0,0,.28)', pointerEvents:'none' }} />
+              <input className="iq-inp" type="text" value={fullName} onChange={e => setFullName(e.target.value)}
+                required placeholder="Full name" style={IQ_FIELD} />
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <Mail style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', width:'14px', height:'14px', color:'rgba(0,0,0,.28)', pointerEvents:'none' }} />
+              <input className="iq-inp" type="email" value={email} onChange={e => setEmail(e.target.value)}
+                required placeholder="Email address" style={IQ_FIELD} />
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <Lock style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', width:'14px', height:'14px', color:'rgba(0,0,0,.28)', pointerEvents:'none' }} />
+              <input className="iq-inp" type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                required placeholder="Password" style={{ ...IQ_FIELD, paddingRight: '38px' }} />
+              <button type="button" onClick={() => setShowPwd(!showPwd)}
+                style={{ position:'absolute', right:'11px', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'rgba(0,0,0,.28)', display:'flex', padding:'2px' }}>
+                {showPwd ? <EyeOff style={{ width:'14px', height:'14px' }} /> : <Eye style={{ width:'14px', height:'14px' }} />}
+              </button>
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <Lock style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', width:'14px', height:'14px', color:'rgba(0,0,0,.28)', pointerEvents:'none' }} />
+              <input className="iq-inp" type={showConfirmPwd ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                required placeholder="Confirm password" style={{ ...IQ_FIELD, paddingRight: '38px' }} />
+              <button type="button" onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+                style={{ position:'absolute', right:'11px', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'rgba(0,0,0,.28)', display:'flex', padding:'2px' }}>
+                {showConfirmPwd ? <EyeOff style={{ width:'14px', height:'14px' }} /> : <Eye style={{ width:'14px', height:'14px' }} />}
+              </button>
+            </div>
+
+            <button type="submit" disabled={loading} className="iq-btn"
+              style={{
+                width: '100%', padding: '13px', marginTop: '4px',
+                background: '#1e3a8a', border: 'none', borderRadius: '8px',
+                fontSize: '13px', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase',
+                color: '#fff', cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              {loading ? 'Creating account…' : 'Create Account'}
+            </button>
+          </form>
+        )}
+
         <div style={{ flex: 1 }} />
-        <p style={{ fontSize: '12px', color: 'rgba(140,115,70,.3)', marginTop: '24px' }}>
-          © 2026 IntelliQuery BI Suite
-        </p>
+
+        {/* Quick-access demo switcher */}
+        <div style={{ marginTop: '28px', paddingTop: '18px', borderTop: '1px solid rgba(0,0,0,.07)' }}>
+          <p style={{ fontSize: '10px', color: 'rgba(0,0,0,.28)', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '500', textAlign: 'center', marginBottom: '10px' }}>
+            Quick Access
+          </p>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {['sameed', 'izma', 'umair'].map(name => (
+              <button key={name} className="iq-qa"
+                onClick={() => { setTab('signin'); setEmail(`${name}@intelliquery.com`); setPassword('1234'); }}
+                style={{
+                  flex: 1, padding: '7px 4px',
+                  background: 'rgba(0,0,0,.025)',
+                  border: '1px solid rgba(0,0,0,.09)',
+                  borderRadius: '6px', cursor: 'pointer',
+                  fontSize: '12px', fontWeight: '500',
+                  color: 'rgba(0,0,0,.42)',
+                  textTransform: 'capitalize',
+                  transition: 'all .15s', fontFamily: 'inherit',
+                }}>
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Pagination dots */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '24px' }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{
+              width: i === 0 ? '20px' : '7px', height: '7px',
+              borderRadius: '4px',
+              background: i === 0 ? '#1e3a8a' : 'rgba(0,0,0,.14)',
+              transition: 'all .2s',
+            }} />
+          ))}
+        </div>
       </div>
 
-      {/* ══ RIGHT PANEL ═════════════════════════════════════════════════════ */}
+      {/* ═══════════════ RIGHT — FLUID GRADIENT HERO ═══════════════ */}
       <div style={{
-        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '48px 40px',
-        background: 'linear-gradient(160deg,#0c1525 0%,#080d1a 100%)',
-        position: 'relative', overflow: 'hidden',
+        flex: 1, position: 'relative', overflow: 'hidden',
+        background: '#0e1f7a',
       }}>
-        {/* Subtle right-panel glow */}
-        <div style={{ position:'absolute',top:'30%',right:'20%',width:'300px',height:'300px',borderRadius:'50%',background:'radial-gradient(circle,rgba(80,100,220,.06) 0%,transparent 70%)',pointerEvents:'none' }} />
 
-        <div className="iq-form-card" style={{ width: '100%', maxWidth: '460px' }}>
-          {/* Card */}
-          <div style={{
-            background: 'rgba(10,18,42,.78)',
-            backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)',
-            border: '1px solid rgba(212,175,55,.14)',
-            borderRadius: '28px', padding: '44px 44px 36px',
-            boxShadow: '0 32px 100px rgba(0,0,0,.65),inset 0 1px 0 rgba(212,175,55,.1),inset 0 -1px 0 rgba(0,0,0,.4)',
+        {/* ── Fluid organic blobs ── */}
+        {/* Primary warm cream blob */}
+        <div style={{
+          position: 'absolute',
+          width: '780px', height: '780px',
+          top: '-18%', right: '-12%',
+          background: 'radial-gradient(ellipse at 45% 45%, rgba(248,232,185,.95) 0%, rgba(220,210,170,.7) 30%, rgba(160,195,235,.45) 58%, transparent 75%)',
+          borderRadius: '42% 58% 62% 38% / 44% 36% 64% 56%',
+          filter: 'blur(2px)',
+          animation: 'blobA 18s ease-in-out infinite',
+        }} />
+        {/* Secondary cool blue accent */}
+        <div style={{
+          position: 'absolute',
+          width: '560px', height: '640px',
+          bottom: '-12%', left: '8%',
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(110,155,230,.55) 0%, rgba(70,115,210,.3) 45%, transparent 70%)',
+          borderRadius: '60% 40% 32% 68% / 55% 42% 58% 45%',
+          filter: 'blur(30px)',
+          animation: 'blobB 22s ease-in-out infinite',
+        }} />
+        {/* Inner warm highlight */}
+        <div style={{
+          position: 'absolute',
+          width: '420px', height: '420px',
+          top: '5%', right: '8%',
+          background: 'radial-gradient(circle, rgba(255,248,215,.55) 0%, transparent 65%)',
+          filter: 'blur(18px)',
+          animation: 'blobC 14s ease-in-out infinite',
+        }} />
+        {/* Deep blue vignette at bottom */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: '45%',
+          background: 'linear-gradient(to top, rgba(8,16,80,.85) 0%, transparent 100%)',
+          pointerEvents: 'none',
+        }} />
+
+        {/* ── Top nav ── */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+          padding: '26px 44px', gap: '28px', zIndex: 2,
+        }}>
+          {['About', 'Download', 'Premium', 'Contact'].map(n => (
+            <span key={n} className="rp-nav" style={{ fontSize: '13px', color: 'rgba(255,255,255,.55)', cursor: 'pointer', transition: 'color .15s', fontWeight: '500' }}>
+              {n}
+            </span>
+          ))}
+          <button onClick={() => {}}
+            style={{
+              padding: '8px 18px',
+              border: '1px solid rgba(255,255,255,.3)',
+              borderRadius: '7px',
+              background: 'rgba(255,255,255,.1)',
+              backdropFilter: 'blur(8px)',
+              color: 'white', fontSize: '12.5px', fontWeight: '600',
+              cursor: 'pointer', fontFamily: 'inherit',
+              transition: 'background .15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,.18)'}
+            onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,.1)'}>
+            Sign In
+          </button>
+        </div>
+
+        {/* ── Bottom "Welcome." text ── */}
+        <div style={{
+          position: 'absolute', bottom: '64px', left: '56px', right: '56px', zIndex: 2,
+        }}>
+          <h1 style={{
+            fontSize: '76px', fontWeight: '900', color: '#FFFFFF',
+            margin: '0 0 14px', lineHeight: '1.0', letterSpacing: '-2.5px',
           }}>
-            <h2 style={{
-              fontSize: '22px', fontWeight: '700', color: '#e8d5a3',
-              margin: '0 0 6px', letterSpacing: '.3px',
-            }}>
-              {tab === 'signin' ? 'Welcome back' : 'Create your account'}
-            </h2>
-            <p style={{ fontSize: '14px', color: 'rgba(190,160,100,.5)', margin: '0 0 28px' }}>
-              {tab === 'signin' ? 'Sign in to your IntelliQuery workspace' : 'Get started with IntelliQuery today'}
-            </p>
-
-            {/* Tab switcher */}
-            <div style={{
-              display: 'flex', background: 'rgba(255,255,255,.03)',
-              border: '1px solid rgba(212,175,55,.1)', borderRadius: '14px',
-              padding: '4px', marginBottom: '26px',
-            }}>
-              {[{ id: 'signin', label: 'Sign In' }, { id: 'register', label: 'Request Access' }].map(({ id, label }) => (
-                <button key={id} className="iq-tab"
-                  onClick={() => { setTab(id); setError(''); setSuccessMsg(''); }}
-                  style={{
-                    flex: 1, padding: '10px 14px', borderRadius: '10px',
-                    fontSize: '13px', fontWeight: '600', cursor: 'pointer', border: 'none',
-                    background: tab === id
-                      ? 'linear-gradient(135deg,rgba(212,175,55,.22) 0%,rgba(212,175,55,.10) 100%)'
-                      : 'transparent',
-                    color: tab === id ? '#d4af37' : 'rgba(180,150,90,.45)',
-                    boxShadow: tab === id ? '0 0 0 1px rgba(212,175,55,.2)' : 'none',
-                    transition: 'all .2s',
-                  }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Alerts */}
-            {successMsg && (
-              <div style={{ background:'rgba(16,185,129,.09)',border:'1px solid rgba(16,185,129,.22)',borderRadius:'12px',padding:'12px 16px',fontSize:'14px',color:'#34d399',marginBottom:'18px' }}>
-                {successMsg}
-              </div>
-            )}
-            {error && (
-              <div style={{ background:'rgba(239,68,68,.08)',border:'1px solid rgba(239,68,68,.2)',borderRadius:'12px',padding:'12px 16px',fontSize:'14px',color:'#f87171',marginBottom:'18px' }}>
-                {error}
-              </div>
-            )}
-
-            {/* Sign In form */}
-            {tab === 'signin' && (
-              <form onSubmit={handleSignIn} style={{ display:'flex',flexDirection:'column',gap:'14px' }}>
-                <div className="iq-field" style={fieldBox}>
-                  <Mail style={fieldIcon} />
-                  <input type="email" value={email} onChange={e=>setEmail(e.target.value)} required
-                    placeholder="your@email.com" style={fieldInput} />
-                </div>
-                <div className="iq-field" style={fieldBox}>
-                  <Lock style={fieldIcon} />
-                  <input type={showPwd?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} required
-                    placeholder="Enter your password" style={fieldInput} />
-                  <button type="button" onClick={()=>setShowPwd(!showPwd)}
-                    style={{ background:'none',border:'none',cursor:'pointer',padding:'4px',color:'rgba(212,175,55,.38)',display:'flex' }}>
-                    {showPwd ? <EyeOff style={{width:'16px',height:'16px'}}/> : <Eye style={{width:'16px',height:'16px'}}/>}
-                  </button>
-                </div>
-                <div style={{ textAlign:'right',marginTop:'-4px' }}>
-                  <button type="button" className="iq-link"
-                    style={{ background:'none',border:'none',cursor:'pointer',color:'rgba(212,175,55,.44)',fontSize:'13px',transition:'color .2s' }}>
-                    Forgot Password?
-                  </button>
-                </div>
-                <button type="submit" disabled={loading} className="iq-shimmer-btn"
-                  style={{
-                    width:'100%',padding:'15px',border:'none',borderRadius:'14px',
-                    fontSize:'14px',fontWeight:'700',letterSpacing:'0.8px',textTransform:'uppercase',
-                    color:'#0a0f1e',cursor:loading?'not-allowed':'pointer',opacity:loading?.65:1,marginTop:'6px',
-                    fontFamily:"'Inter','Segoe UI',sans-serif",
-                  }}>
-                  {loading?'Authenticating…':'Sign In →'}
-                </button>
-                <p style={{ textAlign:'center',fontSize:'13px',color:'rgba(180,150,90,.4)',margin:'6px 0 0' }}>
-                  Don't have an account?{' '}
-                  <button type="button" onClick={()=>setTab('register')} className="iq-link"
-                    style={{ background:'none',border:'none',cursor:'pointer',color:'rgba(212,175,55,.7)',fontWeight:'600',fontSize:'13px',transition:'color .2s' }}>
-                    Request Access
-                  </button>
-                </p>
-              </form>
-            )}
-
-            {/* Register form */}
-            {tab === 'register' && (
-              <form onSubmit={handleRegister} style={{ display:'flex',flexDirection:'column',gap:'14px' }}>
-                <div className="iq-field" style={fieldBox}>
-                  <User style={fieldIcon} />
-                  <input type="text" value={fullName} onChange={e=>setFullName(e.target.value)} required
-                    placeholder="Full name" style={fieldInput} />
-                </div>
-                <div className="iq-field" style={fieldBox}>
-                  <Mail style={fieldIcon} />
-                  <input type="email" value={email} onChange={e=>setEmail(e.target.value)} required
-                    placeholder="your@email.com" style={fieldInput} />
-                </div>
-                <div className="iq-field" style={fieldBox}>
-                  <Lock style={fieldIcon} />
-                  <input type={showPwd?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} required
-                    placeholder="Choose a password" style={fieldInput} />
-                  <button type="button" onClick={()=>setShowPwd(!showPwd)}
-                    style={{ background:'none',border:'none',cursor:'pointer',padding:'4px',color:'rgba(212,175,55,.38)',display:'flex' }}>
-                    {showPwd ? <EyeOff style={{width:'16px',height:'16px'}}/> : <Eye style={{width:'16px',height:'16px'}}/>}
-                  </button>
-                </div>
-                <div className="iq-field" style={fieldBox}>
-                  <Lock style={fieldIcon} />
-                  <input type={showConfirmPwd?'text':'password'} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} required
-                    placeholder="Confirm password" style={fieldInput} />
-                  <button type="button" onClick={()=>setShowConfirmPwd(!showConfirmPwd)}
-                    style={{ background:'none',border:'none',cursor:'pointer',padding:'4px',color:'rgba(212,175,55,.38)',display:'flex' }}>
-                    {showConfirmPwd ? <EyeOff style={{width:'16px',height:'16px'}}/> : <Eye style={{width:'16px',height:'16px'}}/>}
-                  </button>
-                </div>
-                <button type="submit" disabled={loading} className="iq-shimmer-btn"
-                  style={{
-                    width:'100%',padding:'15px',border:'none',borderRadius:'14px',
-                    fontSize:'14px',fontWeight:'700',letterSpacing:'0.8px',textTransform:'uppercase',
-                    color:'#0a0f1e',cursor:loading?'not-allowed':'pointer',opacity:loading?.65:1,marginTop:'6px',
-                    fontFamily:"'Inter','Segoe UI',sans-serif",
-                  }}>
-                  {loading?'Creating Account…':'Request Access →'}
-                </button>
-              </form>
-            )}
-
-            {/* Demo accounts */}
-            <div style={{ marginTop:'26px',paddingTop:'22px',borderTop:'1px solid rgba(212,175,55,.09)' }}>
-              <p style={{ fontSize:'11px',color:'rgba(180,150,90,.35)',textAlign:'center',letterSpacing:'2px',textTransform:'uppercase',marginBottom:'13px' }}>
-                Demo Accounts
-              </p>
-              <div style={{ display:'flex',justifyContent:'center',gap:'10px' }}>
-                {['sameed','izma','umair'].map(name => (
-                  <button key={name} className="iq-demo"
-                    onClick={() => { setTab('signin'); setEmail(`${name}@intelliquery.com`); setPassword('1234'); }}
-                    style={{
-                      padding:'7px 16px',borderRadius:'10px',
-                      background:'rgba(212,175,55,.07)',border:'1px solid rgba(212,175,55,.15)',
-                      color:'rgba(212,175,55,.7)',fontSize:'13px',fontWeight:'600',cursor:'pointer',
-                      textTransform:'capitalize',transition:'all .2s',
-                    }}>
-                    {name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <p style={{ marginTop:'22px',textAlign:'center',fontSize:'12px',color:'rgba(140,115,70,.3)' }}>
-              © 2026 IntelliQuery BI Suite &nbsp;·&nbsp; Terms &nbsp;·&nbsp; Privacy
-            </p>
-          </div>
+            Welcome.
+          </h1>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,.52)', lineHeight: '1.75', maxWidth: '380px', margin: '0 0 20px' }}>
+            Your intelligent analytics workspace. Ask questions in plain English, get instant SQL, insights, and beautiful charts.
+          </p>
+          <button onClick={() => setTab('register')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'rgba(255,255,255,.48)', padding: 0, fontFamily: 'inherit', transition: 'color .15s' }}
+            onMouseEnter={e => e.currentTarget.style.color='rgba(255,255,255,.85)'}
+            onMouseLeave={e => e.currentTarget.style.color='rgba(255,255,255,.48)'}>
+            Not a member? <span style={{ color: '#fff', fontWeight: '700', textDecoration: 'underline', textUnderlineOffset: '3px' }}>Sign up now</span>
+          </button>
         </div>
       </div>
     </div>
