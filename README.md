@@ -1,8 +1,20 @@
 # IntelliQuery — AI-Powered Conversational Business Intelligence
 
-![NLP to SQL Agent Flow](NLP_to_SQL_Agent_Flow.png)
+![NLP to SQL Agent Flow](diagrams/NLP_to_SQL_Agent_Flow.png)
 
 **IntelliQuery** is a full-stack, AI-powered BI platform that translates natural language questions into SQL queries, executes them against a live PostgreSQL database, and automatically generates interactive visualizations — all through a conversational chat interface. Non-technical users can explore business data without writing a single line of SQL.
+
+---
+
+## Academic Context
+
+| | |
+|---|---|
+| **Institution** | Institute of Business Administration (IBA) — SMCS |
+| **Program** | Final Year Project (FYP) 2026 |
+| **Industry Sponsor** | Folio3 |
+| **Supervisor** | Abeera Tariq |
+| **Team** | Izma Khan · Sameed Ahmad · Shaikh Muhammad Umair |
 
 ---
 
@@ -21,6 +33,7 @@
 11. [Database Schema](#database-schema)
 12. [Environment Variables](#environment-variables)
 13. [Getting Started](#getting-started)
+14. [Evaluation](#evaluation)
 
 ---
 
@@ -33,8 +46,15 @@
 - Multi-turn conversation support with follow-up context tracking (last 5 query contexts)
 - Query preprocessing: abbreviation expansion (`qty` → `quantity`), typo correction (Levenshtein distance), normalization
 
+### LLM Supervisor Routing
+- Dedicated lightweight LLM (`llama3-8b-8192` via Groq) acts as a supervisor node that classifies every incoming query
+- Binary classification: **SQL** (requires database lookup) vs **CASUAL** (greeting, small talk, meta-question)
+- Uses conversation context (`last_topic`) to handle follow-up queries correctly
+- Automatic regex fallback if the LLM API is unreachable (interrogative pattern + entity keyword matching)
+- Conversational follow-up expansion: "what about Germany?" resolves to the previous query with the country swapped
+
 ### Intelligent Query Validation
-- **Syntax checking**: parentheses matching, quote balancing
+- **Syntax checking**: parentheses matching, quote balancing, CTE auto-repair
 - **Security scanning**: blocks dangerous keywords (`DROP`, `DELETE`, `ALTER`, `TRUNCATE`)
 - **SQL injection prevention**: regex-based pattern detection, read-only enforcement
 - **Business logic validation**: revenue calculation rules, date filter validation
@@ -50,6 +70,15 @@
 - Manual Chart Builder: write custom SQL and configure chart visually
 - Export charts and dashboards as PNG/PDF
 - Auto-generated starter dashboard with key business metrics on first login
+- Charts auto-fit screen height — no scrolling required on the dashboard view
+
+### Glassmorphism UI
+- Dark navy (`#0a0f1e`) background with electric cyan (`#00D4FF`) and gold (`#d4af37`) accents
+- Glassmorphism login card with shimmer button animation
+- Collapsible sidebar: 220 px (icon + text) or 56 px (icon-only) with smooth CSS transition
+- **Ask AI Drawer**: 340 px slide-in panel triggered from the top navigation bar
+- Top bar: breadcrumbs | centered NL query input | Knowledge Base badge | Notifications | Avatar
+- Dark theme as default; light theme available
 
 ### RAG Knowledge Base
 - Upload company documents (PDF, DOCX, TXT, MD, CSV)
@@ -73,6 +102,8 @@
 
 ## Architecture Overview
 
+![Software Architecture Diagram](diagrams/software%20architecture.png)
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     React Frontend                       │
@@ -88,10 +119,11 @@
 │          ▼                            ▼                 │
 │   LangGraph SQL Agent           RAG Agent               │
 │   ┌──────────────────┐    ┌──────────────────┐          │
-│   │ Schema Inspector │    │  ChromaDB Store  │          │
-│   │ SQL Planner      │    │  FastEmbed       │          │
-│   │ Query Validator  │    │  DuckDuckGo Web  │          │
-│   │ SQL Executor     │    └──────────────────┘          │
+│   │ LLM Supervisor   │    │  ChromaDB Store  │          │
+│   │ Schema Inspector │    │  FastEmbed       │          │
+│   │ SQL Planner      │    │  DuckDuckGo Web  │          │
+│   │ Query Validator  │    └──────────────────┘          │
+│   │ SQL Executor     │                                  │
 │   │ Chart Recommender│                                  │
 │   └────────┬─────────┘                                  │
 │            │ MCP (stdio)                                │
@@ -112,6 +144,7 @@
 
 | Decision | Rationale |
 |----------|-----------|
+| **LLM Supervisor Router** | Lightweight `llama3-8b-8192` binary classifier routes queries before the full agent runs — avoids wasting tokens on greetings |
 | **LangGraph StateGraph** | Deterministic multi-step workflows with typed state and conditional routing |
 | **MCP Server (stdio)** | SQL execution delegated to a subprocess-based MCP server for Windows compatibility |
 | **Dual embedding pipelines** | FastEmbed (local, CPU) for few-shot selection; ChromaDB for RAG document search |
@@ -124,6 +157,8 @@
 
 ## Agent Flow (LangGraph)
 
+![LangGraph Agent Flow](diagrams/NLP_to_SQL_Agent_Flow.png)
+
 ```
 User Question
       │
@@ -132,15 +167,17 @@ User Question
   · Normalize, expand abbreviations, correct typos
       │
       ▼
-[Query Classifier]
-  · Is this a SQL question, a follow-up, or a knowledge base query?
-  ├──→ Non-SQL / Greeting  ──→ [Response Generator] ──→ Response
-  ├──→ RAG Query  ──────→ [RAG Agent] ──────────────→ Response + Citations
+[LLM Supervisor Node]  ← llama3-8b-8192 (binary router)
+  · "SQL" → continue to agent graph
+  · "CASUAL" → generate conversational reply directly
+  · Regex fallback if API unavailable
+  ├──→ Greeting / Casual  ──→ Response Generator ──→ Response
+  ├──→ RAG Query  ─────→ RAG Agent ─────────────→ Response + Citations
   └──→ SQL Query ──┐
                    ▼
          [Schema Inspector Node]
            · Dynamic schema discovery
-           · Semantic table selection
+           · Semantic table selection (+2.0 per keyword hit, +5.0 exact match)
            · Relationship & FK detection
            · Business context injection
                    │
@@ -153,6 +190,7 @@ User Question
                    ▼                       │
          [Query Validator Node]            │
            · Syntax validation             │
+           · CTE auto-repair               │
            · Security scan                 │
            · Business logic checks         │
            · EXPLAIN pre-validation        │
@@ -162,8 +200,15 @@ User Question
            │  No (security) ──→ Error Response
            │  Yes ↓
          [SQL Executor Node]
-           · Execute on PostgreSQL
+           · Execute on PostgreSQL via MCP
            · Format results (Decimal→float, date→ISO)
+           · Auto-limit 100 rows
+                   │
+                   ▼
+         [Error Analyzer Node]
+           · Fetch prior session errors from MCP
+           · Classify failure type
+           · Route to retry or terminal error
                    │
                    ▼
          [Chart Recommender]
@@ -173,7 +218,8 @@ User Question
                    │
                    ▼
          [Output Formatter]
-           · Format response message
+           · Context-aware intro generation
+           · Format response message (top/worst/comparison/generic)
            · Save to conversation history
            · Persist to Redis
                    │
@@ -186,13 +232,15 @@ User Question
 
 | Node | File | Responsibility |
 |------|------|---------------|
+| LLM Supervisor | [utils/query_classifier.py](utils/query_classifier.py) | Binary SQL vs CASUAL routing via `llama3-8b-8192` |
 | Schema Inspector | [nodes/schema_inspector.py](nodes/schema_inspector.py) | Table selection, context injection |
 | Planner | [nodes/planner.py](nodes/planner.py) | SQL generation via LLM |
 | Query Validator | [tools/validation_tools.py](tools/validation_tools.py) | Syntax, security, business logic |
-| SQL Executor | [tools/sql_tools.py](tools/sql_tools.py) | PostgreSQL execution |
+| SQL Executor | [tools/sql_tools.py](tools/sql_tools.py) | PostgreSQL execution via MCP |
+| Error Analyzer | [nodes/error_analyzer.py](nodes/error_analyzer.py) | Error classification + retry routing |
 | Chart Recommender | [tools/chart_recommender.py](tools/chart_recommender.py) | Chart type selection |
 | Dashboard Manager | [tools/dashboard_manager.py](tools/dashboard_manager.py) | Dashboard CRUD + persistence |
-| Error Analyzer | [nodes/error_analyzer.py](nodes/error_analyzer.py) | Error classification + retry routing |
+| Output Formatter | [flow/graph.py](flow/graph.py) | Context-aware response generation |
 
 ---
 
@@ -241,10 +289,9 @@ User Question
 ## External Services & Integrations
 
 ### Groq (LLM Provider)
-- **Model**: `llama-3.3-70b-versatile`
-- **Use**: SQL generation, query planning, response synthesis
+- **SQL Generation Model**: `llama-3.3-70b-versatile` — temperature 0, deterministic output
+- **Supervisor Router Model**: `llama3-8b-8192` — temperature 0, ultra-low latency binary classification
 - **Config**: `GROQ_API_KEY` in `.env`
-- **Temperature**: 0 (deterministic output)
 
 ### FastEmbed (Local Embeddings)
 - **Model**: `sentence-transformers/all-MiniLM-L6-v2`
@@ -274,8 +321,8 @@ User Question
 
 ### Model Context Protocol (MCP)
 - **Server**: `server/mcp_server.py` (FastMCP, stdio transport)
-- **Tools exposed**: `execute_sql_query`, schema discovery functions
-- **Client**: `client/mcp_client.py`
+- **Tools exposed**: `execute_sql_query`, schema discovery functions, session error tracking
+- **Client**: `client/mcp_client.py` (thread-safe, Windows AsyncIO Proactor policy)
 
 ---
 
@@ -285,17 +332,18 @@ User Question
 powerbi-sql-agent/
 │
 ├── api/
-│   └── main.py                    # FastAPI app — all routes (996 lines)
+│   └── main.py                    # FastAPI app — all routes (~1000 lines)
 │
 ├── frontend/
 │   └── src/
-│       ├── App.jsx                # Main app (login, chat, session)
+│       ├── App.jsx                # Login (glassmorphism) + Chat UI + Session mgmt
+│       ├── main.jsx               # React entry point
 │       ├── contexts/
-│       │   └── ThemeContext.jsx   # Dark / light theme provider
+│       │   └── ThemeContext.jsx   # Dark (default) / light theme provider
 │       └── components/
 │           ├── Dashboard/
-│           │   ├── DashboardContainer.jsx   # Grid dashboard, drag-drop, export
-│           │   ├── ChartCard.jsx            # Individual chart wrapper
+│           │   ├── DashboardContainer.jsx   # Grid dashboard, auto-fit, drag-drop, export
+│           │   ├── ChartCard.jsx            # Individual chart wrapper + inline editor
 │           │   ├── FilterPanel.jsx          # Cross-filter controls
 │           │   ├── ManualChartBuilder.jsx   # SQL editor + chart config UI
 │           │   └── ChartTypes/
@@ -317,25 +365,25 @@ powerbi-sql-agent/
 │           └── VisualizationHistory.jsx    # Past queries & saved results
 │
 ├── flow/
-│   ├── graph.py                   # LangGraph StateGraph definition
+│   ├── graph.py                   # LangGraph StateGraph + all node classes
 │   └── edge.py                    # Conditional edge routing logic
 │
 ├── nodes/
-│   ├── schema_inspector.py        # Table selection + context injection
-│   ├── planner.py                 # LLM-based SQL generation
-│   └── error_analyzer.py          # Error classification
+│   ├── schema_inspector.py        # Table selection + semantic scoring + context injection
+│   ├── planner.py                 # LLM-based SQL generation (Groq llama-3.3-70b)
+│   └── error_analyzer.py         # Error classification + retry history
 │
 ├── state/
-│   ├── agent_state.py             # AgentState Pydantic model
-│   └── plan_state.py              # ExecutionPlan tracking
+│   ├── agent_state.py             # AgentState Pydantic model + StateManager
+│   └── plan_state.py              # ExecutionPlan + PlanManager
 │
 ├── tools/
 │   ├── schema_tools.py            # Schema inspection utilities
 │   ├── sql_tools.py               # SQL execution + result formatting
-│   ├── validation_tools.py        # Syntax, security, business logic validation
-│   ├── chart_recommender.py       # Chart type recommendation
+│   ├── validation_tools.py        # Syntax, security, CTE repair, business logic validation
+│   ├── chart_recommender.py       # Chart type recommendation (12 types)
 │   ├── dashboard_manager.py       # Dashboard CRUD + Redis persistence
-│   └── error_manager.py           # Error classification + recovery
+│   └── error_manager.py          # Error classification + recovery suggestions
 │
 ├── database/
 │   ├── connection.py              # PostgreSQL connection
@@ -344,27 +392,27 @@ powerbi-sql-agent/
 │   ├── relationships.py           # Table relationships and join patterns
 │   ├── sample_queries.py          # 23 curated few-shot examples
 │   ├── schema_discovery.py        # Dynamic schema introspection
-│   ├── redis_client.py            # Redis singleton
+│   ├── redis_client.py            # Redis singleton with in-memory fallback
 │   ├── session_store.py           # User session persistence
 │   └── schema.txt                 # Pre-discovered schema snapshot
 │
 ├── rag/
-│   ├── document_store.py          # ChromaDB + document loading + chunking
-│   └── rag_agent.py               # RAG query orchestration + web fallback
+│   ├── document_store.py          # ChromaDB + FastEmbed + document loading + chunking
+│   └── rag_agent.py               # RAG query orchestration + DuckDuckGo web fallback
 │
 ├── utils/
-│   ├── query_preprocessor.py      # Abbreviation expansion, typo correction
-│   └── query_classifier.py        # SQL vs non-SQL classification
+│   ├── query_preprocessor.py      # Abbreviation expansion, Levenshtein typo correction
+│   └── query_classifier.py        # LLM Supervisor Router (SQL vs CASUAL) + regex fallback
 │
 ├── config/
 │   ├── error_config.py            # Error types, severity, recovery strategies
 │   └── northwind_query_rules_fallback.txt
 │
 ├── server/
-│   └── mcp_server.py              # FastMCP server (stdio)
+│   └── mcp_server.py              # FastMCP server (stdio) — SQL tools + error store
 │
 ├── client/
-│   └── mcp_client.py              # MCP client connector
+│   └── mcp_client.py              # MCP client — thread-safe, Windows AsyncIO Proactor
 │
 ├── testing/
 │   ├── test_phase1-4.py

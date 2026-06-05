@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<!--
+  IntelliQuery — POSTER  24 × 36 inch  (2400 × 3600 px @ 100 DPI)
+  EXPORT: Chrome F12 → 📱 → Width:2400 Height:3600 → ⋮ → Capture full size screenshot
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>IntelliQuery — Poster</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:2400px;height:3600px;overflow:hidden;
+  font-family:'Plus Jakarta Sans',system-ui,sans-serif;
+  background:#050C1A;color:#fff}
+body{position:relative}
+
+.bg{position:absolute;inset:0;z-index:0;
+  background:
+    radial-gradient(ellipse 78% 52% at -6%  -4%, rgba(0,212,255,.22) 0%,transparent 52%),
+    radial-gradient(ellipse 68% 48% at 106% 14%,rgba(139,92,246,.18) 0%,transparent 50%),
+    radial-gradient(ellipse 72% 52% at 52%  108%,rgba(16,185,129,.13) 0%,transparent 52%)}
+.bg-dots{position:absolute;inset:0;z-index:0;
+  background-image:radial-gradient(rgba(255,255,255,.052) 1.5px,transparent 1.5px);
+  background-size:50px 50px}
+.bg-svg{position:absolute;inset:0;z-index:0;width:2400px;height:3600px}
+
+/*
+ * space-between distributes 4 sections across 3600px.
+ * Arch takes its natural content height → no overflow into metrics.
+ * Gap between sections ≈ 80px (0.8 inch) — professional breathing room.
+ */
+.poster{
+  position:relative;z-index:1;width:2400px;height:3600px;
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:42px 66px 38px}
+.arch-outer{display:flex;flex-direction:column}
+
+/* ══════════════════════════════════════════════════
+   HEADER — 3-col: IBA logo | title+sub | Folio3 logo
+   ══════════════════════════════════════════════════ */
+.header{
+  display:grid;grid-template-columns:260px 1fr 260px;
+  align-items:center;gap:24px;
+  padding-bottom:24px;border-bottom:2px solid rgba(255,255,255,.10)}
+
+.logo-pill{border-radius:16px;padding:14px 28px;
+  display:flex;align-items:center;justify-content:center}
+.logo-pill.iba{background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.14)}
+/* Folio3 gets white bg so the logo renders correctly regardless of transparency */
+.logo-pill.f3 {background:#ffffff;border:1.5px solid rgba(255,255,255,.25)}
+.logo-pill img{height:110px;object-fit:contain;display:block}
+
+.hc{text-align:center}
+.hc-pre{font-size:24px;color:rgba(0,212,255,.85);font-weight:600;
+  letter-spacing:.18em;text-transform:uppercase;margin-bottom:5px}
+.hc-title{
+  font-size:108px;font-weight:800;line-height:1;letter-spacing:-.025em;
+  background:linear-gradient(120deg,#00D4FF 0%,#8B5CF6 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 20px rgba(0,212,255,.18))}
+.hc-sub{font-size:26px;color:#5A7890;margin-top:5px;letter-spacing:.03em}
+
+/* ══════════════════════════════════════════════════
+   SECTION TITLE
+   ══════════════════════════════════════════════════ */
+.sec-t{
+  font-size:30px;font-weight:700;color:rgba(0,212,255,.90);
+  letter-spacing:.16em;text-transform:uppercase;
+  display:flex;align-items:center;gap:14px;margin-bottom:22px}
+.sec-t::after{content:'';flex:1;height:2px;
+  background:linear-gradient(90deg,rgba(0,212,255,.45),transparent)}
+
+/* ══════════════════════════════════════════════════
+   VALUE PROP CARDS — tall, bullet-style
+   ══════════════════════════════════════════════════ */
+.cards4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+
+.vcard{
+  border-radius:20px;padding:34px 28px;position:relative;overflow:hidden;
+  background:rgba(255,255,255,.04);min-height:580px;
+  display:flex;flex-direction:column}
+/* gradient border via pseudo-element */
+.vcard::before{
+  content:'';position:absolute;inset:0;border-radius:20px;padding:1.5px;
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  mask-composite:exclude}
+.vcard:nth-child(1)::before{background:linear-gradient(135deg,#00D4FF,#006699)}
+.vcard:nth-child(2)::before{background:linear-gradient(135deg,#8B5CF6,#C4B5FD)}
+.vcard:nth-child(3)::before{background:linear-gradient(135deg,#10B981,#34D399)}
+.vcard:nth-child(4)::before{background:linear-gradient(135deg,#EF4444,#F87171)}
+.vcard:nth-child(1){box-shadow:0 0 36px rgba(0,212,255,.10)}
+.vcard:nth-child(2){box-shadow:0 0 36px rgba(139,92,246,.10)}
+.vcard:nth-child(3){box-shadow:0 0 36px rgba(16,185,129,.10)}
+.vcard:nth-child(4){box-shadow:0 0 36px rgba(239,68,68,.10)}
+
+.vc-icon{font-size:58px;display:block;margin-bottom:12px;line-height:1}
+/* 34px title: "Production-Grade Security" fits ~1 line in 496px column */
+.vc-title{font-size:34px;font-weight:700;color:#E8F4FF;line-height:1.1;margin-bottom:14px}
+
+/* flex:1 on the list + justify-content:space-between distributes bullets
+   evenly and ensures the .vc-tag anchors to the very bottom of the card */
+.vc-bullets{list-style:none;flex:1;display:flex;flex-direction:column;
+  justify-content:space-between}
+/* 23px: meaningful increase from 21px original; wraps max 1× per bullet
+   keeping cards ≤580px height so arch section has room */
+.vc-b{
+  font-size:23px;color:#8AABCC;line-height:1.55;
+  padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.vc-b:last-child{border-bottom:none}
+.vc-b strong{color:#D8EEFF;font-weight:600}
+
+.vc-tag{
+  display:inline-block;margin-top:14px;border-radius:100px;
+  padding:7px 20px;font-size:21px;font-weight:600}
+.vcard:nth-child(1) .vc-tag{background:rgba(0,212,255,.10);border:1px solid rgba(0,212,255,.32);color:#5AE8FF}
+.vcard:nth-child(2) .vc-tag{background:rgba(139,92,246,.10);border:1px solid rgba(139,92,246,.32);color:#C4B5FD}
+.vcard:nth-child(3) .vc-tag{background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.32);color:#5ADDB0}
+.vcard:nth-child(4) .vc-tag{background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.32);color:#FCA5A5}
+
+/* ══════════════════════════════════════════════════
+   SYSTEM ARCHITECTURE DIAGRAM
+   ══════════════════════════════════════════════════ */
+.arch{display:flex;flex-direction:column}
+.arch-row{display:flex;gap:16px;align-items:stretch}
+
+/* Vertical connector — glowing cyan */
+.av{
+  display:flex;align-items:center;justify-content:center;
+  height:72px;position:relative;flex-shrink:0}
+.av::before{/* line */
+  content:'';position:absolute;left:50%;top:0;bottom:0;
+  width:4px;transform:translateX(-50%);border-radius:2px;
+  background:linear-gradient(180deg,#00D4FF,rgba(0,212,255,.25));
+  box-shadow:0 0 14px rgba(0,212,255,.75),0 0 28px rgba(0,212,255,.30)}
+.av::after{/* arrowhead */
+  content:'▼';position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);
+  color:#00D4FF;font-size:20px;
+  text-shadow:0 0 14px rgba(0,212,255,.95),0 0 28px rgba(0,212,255,.50)}
+.av-lbl{
+  position:absolute;left:calc(50% + 14px);top:50%;transform:translateY(-50%);
+  font-size:19px;color:rgba(0,212,255,.65);font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+
+/* Branch connector — amber */
+.abranch{
+  height:76px;position:relative;margin:0 16px;flex-shrink:0}
+.abranch::before{/* vertical stem */
+  content:'';position:absolute;left:50%;top:0;
+  width:4px;height:50%;transform:translateX(-50%);border-radius:2px;
+  background:rgba(245,158,11,.75);box-shadow:0 0 12px rgba(245,158,11,.65)}
+.abranch::after{/* horizontal bar */
+  content:'';position:absolute;left:25%;right:25%;top:50%;
+  height:3px;border-radius:2px;
+  background:rgba(245,158,11,.55);box-shadow:0 0 10px rgba(245,158,11,.40)}
+.abranch .bl,.abranch .br{
+  position:absolute;top:50%;font-size:18px;color:rgba(245,158,11,.88);
+  text-shadow:0 0 12px rgba(245,158,11,.75)}
+.abranch .bl{left:25%;transform:translateX(-50%)}
+.abranch .br{right:25%;transform:translateX(50%)}
+
+/* Merge connector — emerald */
+.amerge{
+  height:76px;position:relative;margin:0 16px;flex-shrink:0}
+.amerge::before{/* horizontal bar */
+  content:'';position:absolute;left:25%;right:25%;top:0;
+  height:3px;border-radius:2px;
+  background:rgba(16,185,129,.55);box-shadow:0 0 10px rgba(16,185,129,.40)}
+.amerge::after{/* vertical stem */
+  content:'';position:absolute;left:50%;top:0;bottom:0;
+  width:4px;transform:translateX(-50%);border-radius:2px;
+  background:linear-gradient(180deg,rgba(16,185,129,.40),rgba(16,185,129,.85));
+  box-shadow:0 0 12px rgba(16,185,129,.55)}
+.amerge .ma{
+  position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+  font-size:18px;color:rgba(16,185,129,.92);
+  text-shadow:0 0 12px rgba(16,185,129,.75)}
+
+/* 28px padding: saves 96px total vs 36px → fits within space-between layout */
+.an{
+  border-radius:16px;padding:28px 26px;position:relative;overflow:hidden;flex:1}
+.an::before{content:'';position:absolute;top:0;left:0;right:0;height:4px}
+
+.an.ui  {background:rgba(0,212,255,.07); border:1.5px solid rgba(0,212,255,.35)}
+.an.api {background:rgba(0,212,255,.04); border:1.5px solid rgba(0,212,255,.24)}
+.an.sec {background:rgba(239,68,68,.08); border:1.5px solid rgba(239,68,68,.42)}
+.an.ai  {background:rgba(139,92,246,.07);border:1.5px solid rgba(139,92,246,.36)}
+.an.dat {background:rgba(245,158,11,.05);border:1.5px solid rgba(245,158,11,.32)}
+.an.out {background:rgba(16,185,129,.05);border:1.5px solid rgba(16,185,129,.32)}
+
+.an.ui::before  {background:linear-gradient(90deg,transparent,#00D4FF,transparent)}
+.an.api::before {background:linear-gradient(90deg,transparent,rgba(0,212,255,.70),transparent)}
+.an.sec::before {background:linear-gradient(90deg,transparent,#EF4444,transparent)}
+.an.ai::before  {background:linear-gradient(90deg,transparent,#8B5CF6,transparent)}
+.an.dat::before {background:linear-gradient(90deg,transparent,#F59E0B,transparent)}
+.an.out::before {background:linear-gradient(90deg,transparent,#10B981,transparent)}
+
+/* Node text */
+/* arch node text: moderate increases that don't overflow flex:1 container */
+.an-layer{font-size:18px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;opacity:.85}
+.an.ui  .an-layer,.an.api .an-layer{color:#00D4FF}
+.an.sec .an-layer{color:#EF4444}
+.an.ai  .an-layer{color:#C4B5FD}
+.an.dat .an-layer{color:#FCD34D}
+.an.out .an-layer{color:#34D399}
+
+.an-ico {font-size:40px;display:block;margin-bottom:10px;line-height:1}
+.an-name{font-size:32px;font-weight:700;color:#E8F4FF;line-height:1.1;margin-bottom:8px}
+.an-desc{font-size:24px;color:#7A9ABE;line-height:1.50}
+
+.an-pills{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
+.ap{border-radius:100px;padding:7px 22px;font-size:22px;font-weight:600}
+.ap.c{background:rgba(0,212,255,.10);border:1px solid rgba(0,212,255,.30);color:#5AE8FF}
+.ap.p{background:rgba(139,92,246,.10);border:1px solid rgba(139,92,246,.30);color:#C4B5FD}
+.ap.a{background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.30);color:#FCD34D}
+.ap.e{background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.30);color:#5ADDB0}
+.ap.r{background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.30);color:#FCA5A5}
+
+.retry-pill{
+  position:absolute;top:12px;right:14px;
+  background:rgba(239,68,68,.18);border:1.5px solid rgba(239,68,68,.44);
+  border-radius:100px;padding:5px 16px;
+  font-size:18px;color:#FCA5A5;font-weight:700;
+  box-shadow:0 0 10px rgba(239,68,68,.28)}
+
+/* ══════════════════════════════════════════════════
+   BOTTOM: METRICS + FOOTER (wrapped together)
+   Eliminates blank space at the bottom.
+   ══════════════════════════════════════════════════ */
+.eval-row{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:22px}
+.ebox{
+  border-radius:18px;padding:36px 26px;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;justify-content:space-between}
+.ebox::before{content:'';position:absolute;bottom:0;left:0;right:0;height:4px}
+.ebox:nth-child(1){background:rgba(0,212,255,.05);border:1.5px solid rgba(0,212,255,.28)}
+.ebox:nth-child(2){background:rgba(139,92,246,.05);border:1.5px solid rgba(139,92,246,.28)}
+.ebox:nth-child(3){background:rgba(16,185,129,.05);border:1.5px solid rgba(16,185,129,.28)}
+.ebox:nth-child(4){background:rgba(245,158,11,.05); border:1.5px solid rgba(245,158,11,.28)}
+.ebox:nth-child(1)::before{background:linear-gradient(90deg,transparent,#00D4FF,transparent)}
+.ebox:nth-child(2)::before{background:linear-gradient(90deg,transparent,#8B5CF6,transparent)}
+.ebox:nth-child(3)::before{background:linear-gradient(90deg,transparent,#10B981,transparent)}
+.ebox:nth-child(4)::before{background:linear-gradient(90deg,transparent,#F59E0B,transparent)}
+
+.enum{font-size:156px;font-weight:800;line-height:1;letter-spacing:-.03em}
+.ebox:nth-child(1) .enum{color:#00D4FF;text-shadow:0 0 60px rgba(0,212,255,.55)}
+.ebox:nth-child(2) .enum{color:#C4B5FD;text-shadow:0 0 60px rgba(139,92,246,.55)}
+.ebox:nth-child(3) .enum{color:#34D399;text-shadow:0 0 60px rgba(16,185,129,.55)}
+.ebox:nth-child(4) .enum{color:#FCD34D;text-shadow:0 0 60px rgba(245,158,11,.55)}
+.ename{font-size:30px;font-weight:700;color:#C8DCF0;margin-top:8px;line-height:1.2}
+.esub{font-size:22px;color:#4A6888;margin-top:6px;line-height:1.4}
+.ebars{display:flex;align-items:flex-end;gap:8px;height:80px;margin-top:16px}
+.ebar{flex:1;border-radius:3px 3px 0 0}
+.ebox:nth-child(1) .ebar{background:linear-gradient(180deg,rgba(0,212,255,.65),rgba(0,212,255,.12))}
+.ebox:nth-child(2) .ebar{background:linear-gradient(180deg,rgba(139,92,246,.65),rgba(139,92,246,.12))}
+.ebox:nth-child(3) .ebar{background:linear-gradient(180deg,rgba(16,185,129,.65),rgba(16,185,129,.12))}
+.ebox:nth-child(4) .ebar{background:linear-gradient(180deg,rgba(245,158,11,.65),rgba(245,158,11,.12))}
+
+/* Footer */
+.footer{
+  display:flex;justify-content:space-between;align-items:center;
+  padding-top:16px;border-top:1.5px solid rgba(255,255,255,.09)}
+.f-left .f-row{font-size:26px;color:#4A6888;line-height:1.85}
+.f-left .f-row b{color:#94B8D8;font-weight:600}
+.f-right{font-size:22px;color:#3A5470;font-weight:600;
+  letter-spacing:.06em;text-align:right;line-height:1.75}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="bg-dots"></div>
+<svg class="bg-svg" viewBox="0 0 2400 3600" preserveAspectRatio="none">
+  <path d="M 2300 0 C 1900 700,1200 1200,400 2000 S -100 3000,300 3600" stroke="rgba(0,212,255,.06)" stroke-width="2" fill="none"/>
+  <path d="M 2400 300 C 2000 900,1500 1500,800 2200 S 100 3100,500 3600" stroke="rgba(139,92,246,.05)" stroke-width="1.5" fill="none"/>
+  <path d="M 100 0 C 500 700,1200 1200,1800 2000 S 2600 3000,2000 3600" stroke="rgba(16,185,129,.04)" stroke-width="1.5" fill="none"/>
+</svg>
+
+<div class="poster">
+
+  <!-- ══ HEADER ══ -->
+  <header class="header">
+    <div class="logo-pill iba"><img src="ibs smcs.jfif" alt="IBA SMCS"></div>
+    <div class="hc">
+      <div class="hc-pre">Final Year Project &nbsp;·&nbsp; Industry Symposium 2026</div>
+      <div class="hc-title">IntelliQuery</div>
+      <div class="hc-sub">AI-Powered Conversational Business Intelligence Platform</div>
+    </div>
+    <div class="logo-pill f3"><img src="folio3.png" alt="Folio3"></div>
+  </header>
+
+  <!-- ══ VALUE PROP CARDS ══ -->
+  <div>
+    <div class="sec-t">Enterprise Value Propositions</div>
+    <div class="cards4">
+      <div class="vcard">
+        <span class="vc-icon">🧠</span>
+        <div class="vc-title">NL → SQL Agent</div>
+        <ul class="vc-bullets">
+          <li class="vc-b"><strong>Model:</strong> LangGraph + Llama-3.3-70B via Groq</li>
+          <li class="vc-b"><strong>Context:</strong> 23 curated few-shot examples</li>
+          <li class="vc-b"><strong>Memory:</strong> 10-turn multi-turn conversation</li>
+          <li class="vc-b"><strong>Output:</strong> Deterministic, reproducible SQL</li>
+        </ul>
+        <span class="vc-tag">Zero SQL expertise needed</span>
+      </div>
+      <div class="vcard">
+        <span class="vc-icon">📊</span>
+        <div class="vc-title">12 Auto-Rendered Charts</div>
+        <ul class="vc-bullets">
+          <li class="vc-b"><strong>Types:</strong> Bar, Line, Pie, Treemap, Radar, Funnel…</li>
+          <li class="vc-b"><strong>Selection:</strong> LLM payload drives chart type choice</li>
+          <li class="vc-b"><strong>Layout:</strong> Drag-and-drop React Grid dashboard</li>
+          <li class="vc-b"><strong>Export:</strong> PNG / PDF from any chart or view</li>
+        </ul>
+        <span class="vc-tag">No configuration required</span>
+      </div>
+      <div class="vcard">
+        <span class="vc-icon">📚</span>
+        <div class="vc-title">RAG over Company Docs</div>
+        <ul class="vc-bullets">
+          <li class="vc-b"><strong>Formats:</strong> PDF, DOCX, CSV, TXT, MD</li>
+          <li class="vc-b"><strong>Search:</strong> ChromaDB + FastEmbed vector store</li>
+          <li class="vc-b"><strong>Fallback:</strong> DuckDuckGo web at confidence &lt;0.30</li>
+          <li class="vc-b"><strong>Answers:</strong> Source-cited with document + page ref</li>
+        </ul>
+        <span class="vc-tag">Cited · Grounded · Accurate</span>
+      </div>
+      <div class="vcard">
+        <span class="vc-icon">🛡️</span>
+        <div class="vc-title">Production-Grade Security</div>
+        <ul class="vc-bullets">
+          <li class="vc-b"><strong>Injection:</strong> Regex-based SQL injection detection</li>
+          <li class="vc-b"><strong>Blocking:</strong> DROP / DELETE / ALTER / TRUNCATE</li>
+          <li class="vc-b"><strong>Validation:</strong> PostgreSQL EXPLAIN pre-execution</li>
+          <li class="vc-b"><strong>Recovery:</strong> 3× auto-retry with error classification</li>
+        </ul>
+        <span class="vc-tag">Enterprise-ready guardrails</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SYSTEM ARCHITECTURE — flex:1 fills all remaining space ══ -->
+  <div class="arch-outer">
+    <div class="sec-t">System Architecture — End-to-End Data Flow</div>
+    <div class="arch">
+
+      <!-- UI -->
+      <div class="arch-row">
+        <div class="an ui">
+          <span class="an-ico">💻</span>
+          <div class="an-layer">User Interface Layer</div>
+          <div class="an-name">React 19 + Tailwind CSS + Framer Motion</div>
+          <div class="an-desc">NL Chat · Drag-and-Drop Dashboard · Manual Chart Builder · RAG Upload</div>
+          <div class="an-pills">
+            <span class="ap c">React 19</span><span class="ap c">Tailwind CSS</span>
+            <span class="ap c">Recharts</span><span class="ap c">React Grid Layout</span><span class="ap c">Axios</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="av"><span class="av-lbl">HTTP / REST (Axios)</span></div>
+
+      <!-- API + Redis -->
+      <div class="arch-row">
+        <div class="an api" style="flex:2">
+          <span class="an-ico">⚡</span>
+          <div class="an-layer">API Gateway</div>
+          <div class="an-name">FastAPI Backend + JWT Authentication</div>
+          <div class="an-desc">Session Management · Query Router · CORS · Pydantic v2 Validation</div>
+          <div class="an-pills">
+            <span class="ap c">FastAPI</span><span class="ap c">Uvicorn</span>
+            <span class="ap c">PyJWT</span><span class="ap c">Pydantic v2</span>
+          </div>
+        </div>
+        <div class="an out" style="flex:1">
+          <span class="an-ico">💾</span>
+          <div class="an-layer">Session Cache</div>
+          <div class="an-name">Redis</div>
+          <div class="an-desc">7-day TTL · Dashboard state · Conversation history · In-memory fallback</div>
+          <div class="an-pills">
+            <span class="ap e">Redis</span><span class="ap e">7-day TTL</span><span class="ap e">In-mem fallback</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="av"></div>
+
+      <!-- Security -->
+      <div class="arch-row">
+        <div class="an sec">
+          <span class="an-ico">🛡️</span>
+          <div class="an-layer">Multi-Layer Security Guardrails — Critical Production Layer</div>
+          <div class="an-name">SQL Injection &nbsp;·&nbsp; Keyword Blocking (DROP/DELETE/ALTER) &nbsp;·&nbsp; Syntax Validation &nbsp;·&nbsp; EXPLAIN Pre-Check &nbsp;·&nbsp; 3× Auto-Retry</div>
+          <div class="an-pills" style="margin-top:10px">
+            <span class="ap r">Read-Only Enforced</span><span class="ap r">Regex Pattern Scan</span>
+            <span class="ap r">Parenthesis Balance</span><span class="ap r">Business Logic Checks</span>
+            <span class="ap r">Error Classification</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="av"></div>
+
+      <!-- LangGraph 3-col -->
+      <div class="arch-row">
+        <div class="an ai" style="flex:1">
+          <span class="an-ico">🔍</span>
+          <div class="an-layer">Schema Intelligence</div>
+          <div class="an-name">Schema Inspector</div>
+          <div class="an-desc">Semantic table selection · 40+ keyword→table mappings · FK detection · Business context injection</div>
+          <div class="an-pills"><span class="ap p">Semantic Scoring</span><span class="ap p">Fuzzy Match</span></div>
+        </div>
+        <div class="an ai" style="flex:1.3">
+          <div class="retry-pill">↺ 3× Auto-Retry</div>
+          <span class="an-ico">🤖</span>
+          <div class="an-layer">AI Orchestration Core</div>
+          <div class="an-name">LangGraph &nbsp;·&nbsp; Llama 3.3 · 70B via Groq</div>
+          <div class="an-desc">StateGraph · Conditional routing · Few-shot semantic retrieval · Temperature: 0 (deterministic)</div>
+          <div class="an-pills">
+            <span class="ap p">LangGraph</span><span class="ap p">LangChain</span>
+            <span class="ap p">Groq API</span><span class="ap p">FastEmbed</span>
+          </div>
+        </div>
+        <div class="an ai" style="flex:1">
+          <span class="an-ico">✅</span>
+          <div class="an-layer">Query Planning</div>
+          <div class="an-name">SQL Planner + Validator</div>
+          <div class="an-desc">Regex cleaning · Syntax check · Business logic validation · EXPLAIN pre-run</div>
+          <div class="an-pills"><span class="ap p">FastMCP</span><span class="ap p">stdio transport</span></div>
+        </div>
+      </div>
+
+      <div class="abranch"><div class="bl">▼</div><div class="br">▼</div></div>
+
+      <!-- Data Stores -->
+      <div class="arch-row">
+        <div class="an dat" style="flex:1">
+          <span class="an-ico">🗄️</span>
+          <div class="an-layer">Relational Data Store</div>
+          <div class="an-name">PostgreSQL — Northwind Dataset</div>
+          <div class="an-desc">Live SQL execution via psycopg2 · 14 tables · 3,000+ rows · Decimal→float, date→ISO</div>
+          <div class="an-pills">
+            <span class="ap a">psycopg2</span><span class="ap a">SELECT-only</span><span class="ap a">14 tables</span>
+          </div>
+        </div>
+        <div class="an dat" style="flex:1">
+          <span class="an-ico">📦</span>
+          <div class="an-layer">Vector Knowledge Store</div>
+          <div class="an-name">ChromaDB + FastEmbed · RAG Pipeline</div>
+          <div class="an-desc">800-char chunks · 120-char overlap · Confidence threshold 0.30 · DuckDuckGo fallback</div>
+          <div class="an-pills">
+            <span class="ap a">ChromaDB</span><span class="ap a">FastEmbed</span>
+            <span class="ap a">DuckDuckGo</span><span class="ap a">Source Citations</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="amerge"><span class="ma">▼</span></div>
+
+      <!-- Output -->
+      <div class="arch-row">
+        <div class="an out">
+          <span class="an-ico">🎯</span>
+          <div class="an-layer">Intelligent Output Layer</div>
+          <div class="an-name">Chart Recommender &nbsp;→&nbsp; Recharts Dashboard</div>
+          <div class="an-desc">Keyword + data-structure analysis selects from 12 chart types · Cross-filter propagation · PNG/PDF export · Auto-generated starter dashboard on login</div>
+          <div class="an-pills">
+            <span class="ap e">Bar</span><span class="ap e">Line</span><span class="ap e">Pie</span>
+            <span class="ap e">Treemap</span><span class="ap e">Radar</span><span class="ap e">Funnel</span>
+            <span class="ap e">Scatter</span><span class="ap e">KPI Card</span>
+            <span class="ap e">Cross-Filter</span><span class="ap e">PNG Export</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /arch-outer: natural height, no flex:1 overflow -->
+
+  <!-- ══ METRICS + FOOTER ══ -->
+  <div>
+    <div class="sec-t">System Performance &amp; Production Readiness</div>
+    <div class="eval-row">
+      <div class="ebox">
+        <div class="enum">23</div>
+        <div class="ename">Few-Shot Examples</div>
+        <div class="esub">Curated Northwind SQL examples for semantic retrieval</div>
+        <div class="ebars">
+          <div class="ebar" style="height:60%"></div><div class="ebar" style="height:75%"></div>
+          <div class="ebar" style="height:88%"></div><div class="ebar" style="height:95%"></div>
+          <div class="ebar" style="height:100%"></div>
+        </div>
+      </div>
+      <div class="ebox">
+        <div class="enum">40<span style="font-size:64px">+</span></div>
+        <div class="ename">Semantic Mappings</div>
+        <div class="esub">Keyword-to-table scoring in Schema Inspector</div>
+        <div class="ebars">
+          <div class="ebar" style="height:50%"></div><div class="ebar" style="height:70%"></div>
+          <div class="ebar" style="height:82%"></div><div class="ebar" style="height:92%"></div>
+          <div class="ebar" style="height:100%"></div>
+        </div>
+      </div>
+      <div class="ebox">
+        <div class="enum">5</div>
+        <div class="ename">Error Categories</div>
+        <div class="esub">Syntax · Permission · Connection · Logic · Timeout — each with auto-recovery</div>
+        <div class="ebars">
+          <div class="ebar" style="height:100%"></div><div class="ebar" style="height:85%"></div>
+          <div class="ebar" style="height:70%"></div><div class="ebar" style="height:55%"></div>
+          <div class="ebar" style="height:40%"></div>
+        </div>
+      </div>
+      <div class="ebox">
+        <div class="enum">7d</div>
+        <div class="ename">Redis Persistence</div>
+        <div class="esub">Sessions · Dashboard layouts · Conversation history · In-memory fallback</div>
+        <div class="ebars">
+          <div class="ebar" style="height:100%"></div><div class="ebar" style="height:100%"></div>
+          <div class="ebar" style="height:98%"></div><div class="ebar" style="height:96%"></div>
+          <div class="ebar" style="height:92%"></div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="f-left">
+        <div class="f-row">Supervisor: <b>Abeera Tariq</b></div>
+        <div class="f-row">Team: <b>Izma Khan</b> &nbsp;·&nbsp; <b>Sameed Ahmad</b> &nbsp;·&nbsp; <b>Shaikh Muhammad Umair</b></div>
+      </div>
+      <div class="f-right">
+        IBA SMCS · School of Mathematics and Computer Science<br>
+        Final Year Project 2026 · Industry Symposium
+      </div>
+    </footer>
+  </div>
+
+</div>
+</body>
+</html>

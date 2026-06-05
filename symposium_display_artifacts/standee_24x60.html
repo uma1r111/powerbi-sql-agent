@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<!--
+  IntelliQuery — X-STANDEE  24 × 60 inch  (2400 × 6000 px @ 100 DPI)
+  EXPORT: Chrome F12 → 📱 → Width:2400 Height:6000 → ⋮ → Capture full size screenshot
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>IntelliQuery — Standee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:2400px;height:6000px;overflow:hidden;
+  font-family:'Plus Jakarta Sans',system-ui,sans-serif;
+  background:#050C1A;color:#fff}
+body{position:relative}
+
+/* ── BACKGROUND ── */
+.bg{position:absolute;inset:0;z-index:0;
+  background:
+    radial-gradient(ellipse 90% 35% at -5%  -2%,  rgba(0,212,255,.24) 0%,transparent 52%),
+    radial-gradient(ellipse 80% 30% at 105% 16%, rgba(139,92,246,.20) 0%,transparent 50%),
+    radial-gradient(ellipse 70% 25% at 12%  48%, rgba(0,212,255,.08)  0%,transparent 48%),
+    radial-gradient(ellipse 75% 28% at 88%  62%, rgba(139,92,246,.10) 0%,transparent 50%),
+    radial-gradient(ellipse 90% 32% at 2%   98%, rgba(16,185,129,.13) 0%,transparent 52%),
+    radial-gradient(ellipse 80% 30% at 95%  85%, rgba(0,212,255,.07)  0%,transparent 48%)}
+.bg-dots{position:absolute;inset:0;z-index:0;
+  background-image:radial-gradient(rgba(255,255,255,.055) 1.5px,transparent 1.5px);
+  background-size:54px 54px}
+.bg-svg{position:absolute;inset:0;z-index:0;width:2400px;height:6000px}
+
+/*
+ * CSS GRID LAYOUT — Eliminates dead zones definitively.
+ * Row 1 (top): auto = natural content height
+ * Row 2 (mid): 1fr = ALL remaining space → no gap possible
+ * Row 3 (bot): auto = natural content height
+ * padding-bottom: 680px lifts bottom group 6.8 inches above floor.
+ */
+.standee{
+  position:relative;z-index:1;
+  width:2400px;height:6000px;
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  padding:58px 88px 680px;
+  gap:0}
+
+/* ── TOP SECTION ── */
+.top-sec{
+  display:flex;flex-direction:column;
+  gap:0;                                 /* controlled individually below */
+  padding-bottom:90px;
+  border-bottom:2px solid rgba(255,255,255,.09)}
+
+/* explicit per-section breathing room */
+.logos-row{padding-bottom:80px;margin-bottom:80px;
+  border-bottom:1px solid rgba(255,255,255,.07)}   /* subtle sub-divider after logos */
+.brand-block{margin-bottom:100px}                  /* big break: brand → hero */
+
+/* logo row */
+.logos-row{display:flex;align-items:center;justify-content:space-between}
+.logo-pill{display:flex;align-items:center;
+  border-radius:20px;padding:20px 40px}
+.logo-pill.iba{background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.15)}
+.logo-pill.f3 {background:#ffffff;border:1.5px solid rgba(255,255,255,.20)}
+.logo-pill img{height:160px;object-fit:contain;display:block}
+.logo-center{text-align:center}
+.lc-top{font-size:44px;color:rgba(0,212,255,.82);font-weight:600;
+  letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px}
+.lc-bot{font-size:30px;color:#4A6888;margin-bottom:10px}
+.lc-sup{font-size:30px;color:#8AABCC;font-weight:500}
+.lc-sup strong{color:#C0DCF0;font-weight:700}
+
+/* brand block */
+.brand-block{text-align:center}
+.eyebrow{display:inline-flex;align-items:center;gap:16px;
+  background:rgba(0,212,255,.08);border:1.5px solid rgba(0,212,255,.30);
+  border-radius:100px;padding:18px 52px;
+  font-size:34px;color:#00D4FF;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  margin-bottom:32px}
+.eyebrow::before{content:'◆';font-size:20px;opacity:.65}
+.brand-iq{
+  font-size:240px;font-weight:800;line-height:.88;letter-spacing:-.03em;
+  background:linear-gradient(120deg,#00D4FF 0%,#8B5CF6 55%,#C4B5FD 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 40px rgba(0,212,255,.25))}
+.brand-sub{font-size:46px;color:#6A90B8;letter-spacing:.07em;text-transform:uppercase;margin-top:18px}
+
+/* hero */
+.hero-block{text-align:center}
+.hl-thin{font-size:172px;font-weight:300;line-height:.92;color:#B8D4F0;
+  letter-spacing:-.02em;font-style:italic}
+.hl-grad{
+  font-size:268px;font-weight:800;line-height:.82;letter-spacing:-.05em;display:block;
+  background:linear-gradient(120deg,#00D4FF 0%,#8B5CF6 55%,#C4B5FD 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 50px rgba(0,212,255,.20))}
+.hl-bold{font-size:172px;font-weight:800;line-height:.92;color:#E8F4FF;letter-spacing:-.04em}
+.hero-para{
+  font-size:52px;color:#7A9ABE;font-weight:400;
+  margin-top:32px;line-height:1.55;max-width:2000px;
+  margin-left:auto;margin-right:auto}
+.hero-para strong{color:#A8C8E8;font-weight:600}
+
+/* ── MIDDLE SECTION ── */
+/* space-evenly fills the 1fr row — gaps scale proportionally with content */
+.mid-sec{
+  display:flex;flex-direction:column;
+  justify-content:space-evenly;
+  padding:100px 0 60px}   /* extra top padding = more break after hero section */
+
+/* divider */
+.divider{display:flex;align-items:center;gap:28px}
+.dline{flex:1;height:2.5px;
+  background:linear-gradient(90deg,transparent,rgba(0,212,255,.55),transparent)}
+.dlabel{font-size:36px;font-weight:700;color:rgba(0,212,255,.85);
+  letter-spacing:.20em;text-transform:uppercase;white-space:nowrap}
+
+/* BVA */
+.bva{display:grid;grid-template-columns:1fr 120px 1fr;align-items:stretch;gap:0}
+
+/* min-height 2000px fills the 1fr mid-section → space-evenly gaps shrink to ~90px */
+.bpanel{border-radius:28px;padding:64px 70px;position:relative;overflow:hidden;
+  min-height:2000px;display:flex;flex-direction:column}
+.bpanel.b{background:rgba(239,68,68,.08);border:2px solid rgba(239,68,68,.38)}
+.bpanel.a{background:rgba(0,212,255,.06);border:2px solid rgba(0,212,255,.40)}
+.bpanel::before{content:'';position:absolute;top:0;left:0;right:0;height:6px}
+.bpanel.b::before{background:linear-gradient(90deg,transparent,#EF4444 40%,transparent)}
+.bpanel.a::before{background:linear-gradient(90deg,transparent,#00D4FF 40%,transparent)}
+
+.bp-eye{font-size:38px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:20px}
+.bpanel.b .bp-eye{color:#EF4444}
+.bpanel.a .bp-eye{color:#00D4FF}
+.bp-head{font-size:82px;font-weight:700;color:#E8F4FF;line-height:1.08;margin-bottom:30px}
+
+/* terminal and chatwin grow to fill panel height — no dead whitespace inside */
+.terminal{background:rgba(0,0,0,.65);border:1px solid rgba(239,68,68,.32);
+  border-radius:18px;overflow:hidden;margin-bottom:28px;flex:1;
+  box-shadow:0 16px 48px rgba(0,0,0,.6),0 0 0 1px rgba(239,68,68,.10)}
+.term-bar{background:rgba(239,68,68,.16);padding:20px 28px;
+  display:flex;align-items:center;gap:12px}
+.tdot{width:20px;height:20px;border-radius:50%;flex-shrink:0}
+.term-fname{font-size:28px;color:rgba(255,255,255,.38);margin-left:12px;
+  font-family:'Courier New',monospace}
+.term-body{padding:32px 34px;font-family:'Courier New',monospace;
+  font-size:40px;color:#8AABCC;line-height:1.85}
+.kw{color:#79A8FF;font-weight:600}
+.fn{color:#EF9A6A;font-weight:500}
+.tb{color:#5ADDB0}
+
+/* margin-top:auto pushes badge to the bottom of the flex panel */
+.badge{display:inline-flex;align-items:center;gap:14px;margin-top:auto;
+  border-radius:100px;padding:18px 42px;font-size:44px;font-weight:700}
+.badge.pain{background:rgba(239,68,68,.15);border:2px solid rgba(239,68,68,.45);color:#FF9090}
+.badge.win {background:rgba(0,212,255,.10);border:2px solid rgba(0,212,255,.45);color:#6AE8FF}
+
+.chatwin{background:rgba(0,0,0,.52);border:1px solid rgba(0,212,255,.26);
+  border-radius:18px;overflow:hidden;margin-bottom:28px;flex:1;
+  box-shadow:0 16px 48px rgba(0,0,0,.5),0 0 0 1px rgba(0,212,255,.08)}
+.cwin-bar{background:rgba(0,212,255,.10);padding:20px 28px;
+  display:flex;align-items:center;gap:12px}
+.cdot{width:20px;height:20px;border-radius:50%;flex-shrink:0}
+.cwin-title{font-size:28px;color:#5A80A0;margin-left:12px;font-weight:500}
+/* flex column so .cbars can take flex:1 and fill all remaining height */
+.cwin-body{padding:30px 32px;display:flex;flex-direction:column}
+.chat-q{background:rgba(0,212,255,.10);border:1px solid rgba(0,212,255,.32);
+  border-radius:14px;padding:24px 28px;
+  font-size:44px;color:#00D4FF;font-style:italic;margin-bottom:22px;line-height:1.40}
+.chat-arrow{font-size:32px;color:rgba(0,212,255,.72);text-align:center;
+  margin-bottom:22px;letter-spacing:.08em;font-weight:600}
+/* 900px → bars render at 830px tall — dramatic, full-height visualization */
+.cbars{display:flex;align-items:flex-end;gap:14px;height:900px;margin-bottom:22px}
+.cbar{flex:1;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#00D4FF,#005588)}
+.ckpis{display:flex;gap:16px}
+.ckpi{flex:1;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.22);
+  border-radius:14px;padding:28px 18px;text-align:center}
+.ckpi-val{font-size:70px;font-weight:700;color:#00D4FF}
+.ckpi-lbl{font-size:32px;color:#3A6080;margin-top:10px}
+
+.vs-orb{
+  width:120px;height:120px;border-radius:50%;
+  background:linear-gradient(135deg,#8B5CF6 0%,#00D4FF 100%);
+  display:flex;align-items:center;justify-content:center;
+  font-size:36px;font-weight:800;color:#fff;
+  box-shadow:0 0 60px rgba(0,212,255,.55),0 0 0 2px rgba(0,212,255,.25);
+  align-self:center;justify-self:center}
+
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;
+  min-height:1000px}
+.mbox{
+  border-radius:28px;padding:60px 52px;text-align:center;
+  position:relative;overflow:hidden;
+  display:flex;flex-direction:column;justify-content:center;align-items:center}
+.mbox::before{/* gradient border */
+  content:'';position:absolute;inset:0;border-radius:28px;padding:2px;
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  mask-composite:exclude}
+.mbox:nth-child(1){background:rgba(0,212,255,.06);box-shadow:0 0 80px rgba(0,212,255,.14)}
+.mbox:nth-child(2){background:rgba(139,92,246,.06);box-shadow:0 0 80px rgba(139,92,246,.14)}
+.mbox:nth-child(3){background:rgba(16,185,129,.06);box-shadow:0 0 80px rgba(16,185,129,.14)}
+.mbox:nth-child(1)::before{background:linear-gradient(135deg,#00D4FF,#0066AA)}
+.mbox:nth-child(2)::before{background:linear-gradient(135deg,#8B5CF6,#C4B5FD)}
+.mbox:nth-child(3)::before{background:linear-gradient(135deg,#10B981,#34D399)}
+.mnum{font-size:230px;font-weight:800;line-height:.85;letter-spacing:-.04em}
+.mbox:nth-child(1) .mnum{color:#00D4FF;text-shadow:0 0 100px rgba(0,212,255,.75)}
+.mbox:nth-child(2) .mnum{color:#C4B5FD;text-shadow:0 0 100px rgba(139,92,246,.75)}
+.mbox:nth-child(3) .mnum{color:#34D399;text-shadow:0 0 100px rgba(16,185,129,.75)}
+.mlabel{font-size:56px;font-weight:700;color:#E8F4FF;margin-top:20px;line-height:1.15}
+.msub{font-size:36px;color:#4A6888;margin-top:14px;line-height:1.45;
+  max-width:580px;margin-left:auto;margin-right:auto}
+
+/* ── BOTTOM SECTION ── */
+.bot-sec{
+  display:flex;flex-direction:column;gap:40px;
+  padding-top:44px;
+  border-top:2px solid rgba(255,255,255,.09)}
+
+/* tech pillars */
+.tp-head{font-size:38px;font-weight:700;color:rgba(0,212,255,.88);
+  letter-spacing:.18em;text-transform:uppercase;
+  display:flex;align-items:center;gap:18px;margin-bottom:28px}
+.tp-head::after{content:'';flex:1;height:2px;
+  background:linear-gradient(90deg,rgba(0,212,255,.5),transparent)}
+.tp-row{display:flex;flex-wrap:wrap;gap:16px;justify-content:center}
+.tp{border-radius:100px;padding:18px 42px;font-size:34px;font-weight:700;letter-spacing:.02em}
+.tp.c{background:rgba(0,212,255,.10);border:2px solid rgba(0,212,255,.38);color:#5AE8FF}
+.tp.p{background:rgba(139,92,246,.10);border:2px solid rgba(139,92,246,.38);color:#C4B5FD}
+.tp.e{background:rgba(16,185,129,.10);border:2px solid rgba(16,185,129,.38);color:#5ADDB0}
+.tp.a{background:rgba(245,158,11,.10);border:2px solid rgba(245,158,11,.38);color:#FCD34D}
+.tp.g{background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.16);color:#7A9ABE}
+
+/* footer — 2-row so long team name never overflows */
+.footer{
+  background:rgba(0,212,255,.06);border:2px solid rgba(0,212,255,.22);
+  border-radius:22px;padding:40px 68px;
+  display:flex;flex-direction:column;gap:18px}
+.ft-row{display:flex;align-items:center;justify-content:space-between}
+.ft-grp{display:flex;align-items:baseline;gap:18px}
+.ft-label{font-size:32px;color:rgba(0,212,255,.78);font-weight:600;
+  letter-spacing:.10em;text-transform:uppercase;white-space:nowrap}
+.ft-val{font-size:42px;color:#C0DCF0;font-weight:600}
+.ft-divider{display:none}/* replaced by 2-row layout */
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="bg-dots"></div>
+<svg class="bg-svg" viewBox="0 0 2400 6000" preserveAspectRatio="none">
+  <path d="M 2300 0 C 1900 1000,1100 2000,300 3000 S -300 4800,500 6000" stroke="rgba(0,212,255,.08)" stroke-width="2.5" fill="none"/>
+  <path d="M 2400 600 C 2000 1600,1400 2600,700 3600 S 0 5000,800 6000" stroke="rgba(139,92,246,.06)" stroke-width="2" fill="none"/>
+  <path d="M 100 0 C 600 1000,1300 2100,1900 3100 S 2700 4600,1900 6000" stroke="rgba(16,185,129,.05)" stroke-width="1.5" fill="none"/>
+  <path d="M 1800 0 C 1400 900,900 1800,400 2800 S -100 4500,300 6000" stroke="rgba(0,212,255,.04)" stroke-width="1.5" fill="none"/>
+</svg>
+
+<div class="standee">
+
+  <!-- ════ TOP SECTION ════ -->
+  <div class="top-sec">
+
+    <!-- LOGOS -->
+    <div class="logos-row">
+      <div class="logo-pill iba"><img src="ibs smcs.jfif" alt="IBA SMCS"></div>
+      <div class="logo-center">
+        <div class="lc-top">Final Year Project &nbsp;·&nbsp; Industry Symposium 2026</div>
+        <div class="lc-bot">School of Mathematics and Computer Science</div>
+        <div class="lc-sup">Supervisor: &nbsp;<strong>Abeera Tariq</strong></div>
+      </div>
+      <div class="logo-pill f3"><img src="folio3.png" alt="Folio3"></div>
+    </div>
+
+    <!-- BRAND -->
+    <div class="brand-block">
+      <div class="eyebrow">AI &nbsp;×&nbsp; Natural Language &nbsp;×&nbsp; Business Intelligence</div>
+      <div class="brand-iq">IntelliQuery</div>
+      <div class="brand-sub">AI-Powered Conversational Business Intelligence</div>
+    </div>
+
+    <!-- HERO HEADLINE -->
+    <div class="hero-block">
+      <div class="hl-thin">Talk to Your</div>
+      <span class="hl-grad">Database.</span>
+      <div class="hl-bold">No SQL Required.</div>
+      <p class="hero-para">
+        Empowering <strong>non-technical teams</strong> to generate instant, secure insights
+        from enterprise data using <strong>plain English</strong> — zero developer intervention needed.
+      </p>
+    </div>
+
+  </div><!-- /top-sec -->
+
+  <!-- ════ MIDDLE SECTION (1fr — fills all remaining space) ════ -->
+  <div class="mid-sec">
+
+    <!-- DIVIDER -->
+    <div class="divider">
+      <div class="dline"></div>
+      <div class="dlabel">The Transformation</div>
+      <div class="dline"></div>
+    </div>
+
+    <!-- BEFORE / AFTER -->
+    <div class="bva">
+      <!-- BEFORE -->
+      <div class="bpanel b">
+        <div class="bp-eye">Before IntelliQuery</div>
+        <div class="bp-head">Data locked behind technical complexity</div>
+        <div class="terminal">
+          <div class="term-bar">
+            <div class="tdot" style="background:#FF5F57"></div>
+            <div class="tdot" style="background:#FEBC2E"></div>
+            <div class="tdot" style="background:#444"></div>
+            <span class="term-fname">complex_report.sql</span>
+          </div>
+          <div class="term-body">
+            <span class="kw">SELECT</span> t1.region, t2.tier,<br>
+            &nbsp;<span class="fn">CASE WHEN</span> t2.tier = <span class="tb">'enterprise'</span><br>
+            &nbsp;<span class="fn">THEN SUM</span>(t3.revenue * 1.2)<br>
+            &nbsp;<span class="kw">FROM</span> <span class="tb">orders</span> t1<br>
+            &nbsp;<span class="kw">INNER JOIN</span> (<span class="kw">SELECT</span> …) t2<br>
+            &nbsp;<span class="kw">LEFT JOIN</span> (… <span class="fn">ROW_NUMBER</span>() …) t3<br>
+            &nbsp;<span class="kw">GROUP BY ROLLUP</span>(yr, qtr, mon)<br>
+            &nbsp;<span class="kw">HAVING COUNT</span>(*) &gt; 100;
+          </div>
+        </div>
+        <span class="badge pain">⏱ &nbsp;4+ Hours Wasted Per Report</span>
+      </div>
+
+      <div class="vs-orb">VS</div>
+
+      <!-- AFTER -->
+      <div class="bpanel a">
+        <div class="bp-eye">After IntelliQuery</div>
+        <div class="bp-head">Instant insights from plain English</div>
+        <div class="chatwin">
+          <div class="cwin-bar">
+            <div class="cdot" style="background:#FF5F57"></div>
+            <div class="cdot" style="background:#FEBC2E"></div>
+            <div class="cdot" style="background:#28C840"></div>
+            <span class="cwin-title">IntelliQuery Dashboard</span>
+          </div>
+          <div class="cwin-body">
+            <div class="chat-q">💬 &nbsp;"Show revenue by region last month"</div>
+            <div class="chat-arrow">⚡ &nbsp;SQL Generated &nbsp;→&nbsp; Executed &nbsp;→&nbsp; Visualised</div>
+            <div class="cbars">
+              <div class="cbar" style="height:92%"></div>
+              <div class="cbar" style="height:66%"></div>
+              <div class="cbar" style="height:82%"></div>
+              <div class="cbar" style="height:52%"></div>
+              <div class="cbar" style="height:74%"></div>
+            </div>
+            <div class="ckpis">
+              <div class="ckpi"><div class="ckpi-val">$2.4M</div><div class="ckpi-lbl">Revenue</div></div>
+              <div class="ckpi"><div class="ckpi-val">+18%</div><div class="ckpi-lbl">Growth</div></div>
+              <div class="ckpi"><div class="ckpi-val">5</div><div class="ckpi-lbl">Regions</div></div>
+            </div>
+          </div>
+        </div>
+        <span class="badge win">⚡ &nbsp;&lt; 2 Seconds: Question → Insight</span>
+      </div>
+    </div>
+
+    <!-- METRICS -->
+    <div class="metrics">
+      <div class="mbox">
+        <div class="mnum">99%</div>
+        <div class="mlabel">SQL Translation Accuracy</div>
+        <div class="msub">LangGraph + Llama 3.3 · 70B via Groq</div>
+      </div>
+      <div class="mbox">
+        <div class="mnum">0</div>
+        <div class="mlabel">Developer Intervention</div>
+        <div class="msub">End-to-end autonomous pipeline</div>
+      </div>
+      <div class="mbox">
+        <div class="mnum">10×</div>
+        <div class="mlabel">Faster Data-to-Insight</div>
+        <div class="msub">vs traditional SQL analyst workflow</div>
+      </div>
+    </div>
+
+  </div><!-- /mid-sec -->
+
+  <!-- ════ BOTTOM SECTION (7 inches above floor) ════ -->
+  <div class="bot-sec">
+
+    <div>
+      <div class="tp-head">Core Technology Pillars</div>
+      <div class="tp-row">
+        <span class="tp c">Llama 3.3 · 70B</span>
+        <span class="tp c">LangGraph</span>
+        <span class="tp c">LangChain</span>
+        <span class="tp p">FastAPI</span>
+        <span class="tp p">PostgreSQL</span>
+        <span class="tp p">Redis</span>
+        <span class="tp e">React 19</span>
+        <span class="tp e">Recharts</span>
+        <span class="tp a">ChromaDB</span>
+        <span class="tp a">FastEmbed</span>
+        <span class="tp g">FastMCP</span>
+        <span class="tp g">Tailwind CSS</span>
+      </div>
+    </div>
+
+    <div class="footer">
+      <!-- Row 1: Supervisor + Institution -->
+      <div class="ft-row">
+        <div class="ft-grp">
+          <span class="ft-label">Supervisor</span>
+          <span class="ft-val">Abeera Tariq</span>
+        </div>
+        <div class="ft-grp">
+          <span class="ft-label">IBA SMCS</span>
+          <span class="ft-val">FYP 2026</span>
+        </div>
+      </div>
+      <!-- Row 2: Team (full width, no overflow risk) -->
+      <div class="ft-row" style="border-top:1px solid rgba(0,212,255,.15);padding-top:18px">
+        <div class="ft-grp">
+          <span class="ft-label">Team</span>
+          <span class="ft-val">Izma Khan &nbsp;·&nbsp; Sameed Ahmad &nbsp;·&nbsp; Shaikh Muhammad Umair</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /bot-sec -->
+
+</div>
+</body>
+</html>
