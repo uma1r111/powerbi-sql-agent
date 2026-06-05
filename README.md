@@ -46,6 +46,8 @@
 - Multi-turn conversation support with follow-up context tracking (last 5 query contexts)
 - Query preprocessing: abbreviation expansion (`qty` → `quantity`), typo correction (Levenshtein distance), normalization
 
+![Semantic Few-Shot Learning](diagrams/Semantic%20Few-Shot%20Learning.png)
+
 ### LLM Supervisor Routing
 - Dedicated lightweight LLM (`llama3-8b-8192` via Groq) acts as a supervisor node that classifies every incoming query
 - Binary classification: **SQL** (requires database lookup) vs **CASUAL** (greeting, small talk, meta-question)
@@ -324,6 +326,8 @@ User Question
 - **Tools exposed**: `execute_sql_query`, schema discovery functions, session error tracking
 - **Client**: `client/mcp_client.py` (thread-safe, Windows AsyncIO Proactor policy)
 
+![MCP Architecture](diagrams/MCP.png)
+
 ---
 
 ## Project Structure
@@ -581,6 +585,8 @@ PDF, DOCX, TXT, MD, CSV
 5. **Query**: Semantic search retrieves top-k relevant chunks
 6. **Confidence check**: If max similarity < 0.30, supplement with DuckDuckGo web results
 7. **Response**: Generated answer with source citations (document name + page)
+
+![RAG with Web Fallback](diagrams/RAG%20with%20Web%20Fallback.png)
 
 ---
 
